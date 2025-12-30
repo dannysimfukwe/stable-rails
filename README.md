@@ -22,8 +22,8 @@ Then install Stable:
 
 ```bash
 # Clone the repository
-git clone <repo-url> stable-cli
-cd stable-cli
+git clone git@github.com:dannysimfukwe/stable-rails.git
+cd stable-rails
 
 # Install dependencies
 bundle install

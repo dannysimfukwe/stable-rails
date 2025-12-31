@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Stable
   def self.root
     File.expand_path('~/.stable')

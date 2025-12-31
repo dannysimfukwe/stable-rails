@@ -14,6 +14,7 @@ module Stable
       super
       Stable::Bootstrap.run!
       ensure_dependencies!
+      dedupe_registry!
     end
 
     def self.exit_on_failure?
@@ -29,24 +30,40 @@ module Stable
       port ||= next_free_port
       app_path = File.expand_path(name)
 
+      # --- Add app to registry ---
+      domain = "#{name}.test"
+      apps = Registry.apps
+
+      app = {
+        name: name,
+        path: app_path,
+        domain: domain,
+        port: port,
+        ruby: ruby,
+        started_at: nil
+      }
+
+      apps.reject! { |a| a[:name] == name }
+      apps << app
+
       abort "Folder already exists: #{app_path}" if File.exist?(app_path)
 
       # --- Ensure RVM and Ruby ---
       ensure_rvm!
       puts "Using Ruby #{ruby} with RVM gemset #{name}..."
-      system("bash -lc 'rvm #{ruby}@#{name} --create do true'") or abort('Failed to create RVM gemset')
-
+      system("bash -lc 'rvm #{ruby}@#{name} --create do true'") or abort("Failed to create RVM gemset #{name}")
+      ruby_cmd = rvm_exec(app, ruby)
       # --- Install Rails in gemset if needed ---
       rails_version = rails || 'latest'
-      rails_check = system("bash -lc 'rvm #{ruby}@#{name} do gem list -i rails#{rails ? " -v #{rails}" : ''}'")
+      rails_check = system("bash -lc '#{ruby_cmd} gem list -i rails#{rails ? " -v #{rails}" : ''}'")
       unless rails_check
         puts "Installing Rails #{rails_version} in gemset..."
-        system("bash -lc 'rvm #{ruby}@#{name} do gem install rails #{rails ? "-v #{rails}" : ''}'") or abort('Failed to install Rails')
+        system("bash -lc '#{ruby_cmd} gem install rails #{rails ? "-v #{rails}" : ''}'") or abort('Failed to install Rails')
       end
 
       # --- Create Rails app ---
       puts "Creating Rails app #{name} (Ruby #{ruby})..."
-      system("bash -lc 'rvm #{ruby}@#{name} do rails new #{app_path}'") or abort('Rails app creation failed')
+      system("bash -lc '#{ruby_cmd} rails new #{app_path}'") or abort('Rails app creation failed')
 
       # --- Add .ruby-version and .ruby-gemset ---
       Dir.chdir(app_path) do
@@ -55,14 +72,8 @@ module Stable
 
         # --- Install gems inside gemset ---
         puts 'Running bundle install...'
-        system("bash -lc 'rvm #{ruby}@#{name} do bundle install --jobs=4 --retry=3'") or abort('bundle install failed')
+        system("bash -lc '#{ruby_cmd} bundle install --jobs=4 --retry=3'") or abort('bundle install failed')
       end
-
-      # --- Add app to registry ---
-      domain = "#{name}.test"
-      apps = Registry.apps
-      apps << { name: name, path: app_path, domain: domain, port: port, ruby: ruby }
-      Registry.save(apps)
 
       # --- Host entry & certificate ---
       add_host_entry(domain)
@@ -76,14 +87,19 @@ module Stable
       log_file = File.join(app_path, 'log', 'stable.log')
       FileUtils.mkdir_p(File.dirname(log_file))
 
+      abort "Port #{port} is already in use. Choose another port." if app_running?({ port: port })
+
       pid = spawn(
         'bash',
         '-lc',
-        "cd #{app_path} && rvm #{ruby}@#{name} do bundle exec rails s -p #{port} -b 127.0.0.1",
+        "cd #{app_path} && #{ruby_cmd} bundle exec rails s -p #{port} -b 127.0.0.1",
         out: log_file,
         err: log_file
       )
       Process.detach(pid)
+
+      app[:started_at] = Time.now.to_i
+      Registry.save(apps)
 
       sleep 1.5
 
@@ -110,6 +126,8 @@ module Stable
         puts "Not a Rails app: #{folder}"
         return
       end
+
+      puts "Detected gemset: #{File.read('.ruby-gemset').strip}" if File.exist?('.ruby-gemset')
 
       apps = Registry.apps
       name = File.basename(folder)
@@ -154,46 +172,54 @@ module Stable
     desc 'start NAME', 'Start a Rails app with its correct Ruby version'
     def start(name)
       app = Registry.apps.find { |a| a[:name] == name }
-      unless app
-        puts "No app found with name #{name}"
-        return
-      end
+      return puts("No app found with name #{name}") unless app
 
       port = app[:port] || next_free_port
       ruby = app[:ruby]
+      path = app[:path]
 
-      puts "Starting #{name} on port #{port}#{ruby ? " (Ruby #{ruby})" : ''}..."
-
-      log_file = File.join(app[:path], 'log', 'stable.log')
-      FileUtils.mkdir_p(File.dirname(log_file))
-
-      if ruby
-        if rvm_available?
-          ensure_rvm_ruby!(ruby)
-          "rvm #{ruby}@#{name} do"
-        elsif rbenv_available?
-          ensure_rbenv_ruby!(ruby)
-          "RBENV_VERSION=#{ruby}"
-        else
-          puts 'No Ruby version manager found (rvm or rbenv)'
-          return
-        end
+      if app_running?(app)
+        puts "#{name} is already running on https://#{app[:domain]} (port #{port})"
+        return
       end
+
+      gemset = gemset_for(app)
+
+      rvm_cmd =
+        if ruby && gemset
+          system("bash -lc 'rvm #{ruby}@#{gemset} --create do true'")
+          "rvm #{ruby}@#{gemset} do"
+        elsif ruby
+          "rvm #{ruby} do"
+        end
+
+      puts "Starting #{name} on port #{port}..."
+
+      log_file = File.join(path, 'log', 'stable.log')
+      FileUtils.mkdir_p(File.dirname(log_file))
 
       pid = spawn(
         'bash',
         '-lc',
-        "cd #{app[:path]} && rvm #{ruby}@#{name} do bundle exec rails s -p #{port} -b 127.0.0.1",
+        <<~CMD,
+          cd "#{path}"
+          #{rvm_cmd} bundle exec rails s \
+            -p #{port} \
+            -b 127.0.0.1
+        CMD
         out: log_file,
         err: log_file
       )
+
       Process.detach(pid)
 
-      sleep 1.5
+      wait_for_port(port, timeout: 30)
+
+      app[:started_at] = Time.now.to_i
+      Registry.save(Registry.apps)
 
       generate_cert(app[:domain])
       update_caddyfile(app[:domain], port)
-      wait_for_port(port)
       caddy_reload
 
       puts "#{name} started on https://#{app[:domain]}"
@@ -253,8 +279,11 @@ module Stable
       puts "mkcert: #{system('which mkcert > /dev/null') ? 'yes' : 'no'}"
 
       Registry.apps.each do |app|
-        status = port_in_use?(app[:port]) ? 'running' : 'stopped'
-        puts "#{app[:name]} → Ruby #{app[:ruby] || 'default'} (#{status})"
+        state = boot_state(app)
+        ruby  = app[:ruby] || 'default'
+        port  = app[:port]
+
+        puts "#{app[:name]} → Ruby #{ruby} | port #{port} | #{state}"
       end
     end
 
@@ -480,16 +509,17 @@ module Stable
       end
     end
 
-    def wait_for_port(port, timeout: 30)
+    def wait_for_port(port, timeout: 10)
       require 'socket'
-      start_time = Time.now
+      start = Time.now
+
       loop do
         TCPSocket.new('127.0.0.1', port).close
-        break
+        return
       rescue Errno::ECONNREFUSED
-        raise "Timeout waiting for port #{port}" if Time.now - start_time > timeout
+        raise "Rails never bound port #{port}. Check log/stable.log" if Time.now - start > timeout
 
-        sleep 0.1
+        sleep 0.5
       end
     end
 
@@ -548,6 +578,46 @@ module Stable
 
     def ensure_rbenv_ruby!(version)
       system("rbenv versions | grep -q #{version} || rbenv install #{version}")
+    end
+
+    def app_running?(app)
+      return false unless app && app[:port]
+
+      system("lsof -i tcp:#{app[:port]} -sTCP:LISTEN > /dev/null 2>&1")
+    end
+
+    def boot_state(app)
+      return 'stopped' unless app_running?(app)
+
+      if app[:started_at]
+        elapsed = Time.now.to_i - app[:started_at]
+        return "booting (#{elapsed}s)" if elapsed < 10
+      end
+
+      'running'
+    end
+
+    def dedupe_registry!
+      apps = Registry.apps
+      apps.uniq! { |a| a[:name] }
+      Registry.save(apps)
+    end
+
+    def gemset_for(app)
+      gemset_file = File.join(app[:path], '.ruby-gemset')
+      return File.read(gemset_file).strip if File.exist?(gemset_file)
+
+      nil
+    end
+
+    def rvm_exec(app, ruby)
+      gemset = gemset_for(app)
+
+      if gemset
+        "rvm #{ruby}@#{gemset} do"
+      else
+        "rvm #{ruby} do"
+      end
     end
   end
 end

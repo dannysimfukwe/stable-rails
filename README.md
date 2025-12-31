@@ -1,6 +1,6 @@
-# Stable CLI
+# Stable CLI (macOS)
 
-Stable is a CLI tool to manage local Rails applications with automatic Caddy setup, local trusted HTTPS certificates, and easy start/stop functionality.
+Stable is a CLI tool to manage local Rails applications with automatic Caddy setup on macOS, local trusted HTTPS certificates, and easy start/stop functionality.
 
 ## Features
 
@@ -10,24 +10,8 @@ Stable is a CLI tool to manage local Rails applications with automatic Caddy set
 - Start Rails apps with integrated Caddy reverse proxy.
 - Reload Caddy after adding/removing apps.
 - List all registered apps.
-- Create a new Rails app with automatic setup.
-- Upgrade Ruby versions for existing apps.
-- Run a health check with `stable doctor`.
 
 ## Installation
-
-Make sure you have:
-- [Homebrew](https://brew.sh)
-- [Ruby](https://www.ruby-lang.org)
-- [Rails](https://rubyonrails.org)
-
-Then install Stable:
-
-### As a gem
-
-```bash
-gem install stable
-```
 
 ### From source
 
@@ -40,6 +24,12 @@ cd stable-rails
 bundle install
 ```
 
+### As a gem
+
+```bash
+gem install stable
+```
+
 ## Setup
 
 Initialize Caddy home and required directories:
@@ -48,10 +38,10 @@ Initialize Caddy home and required directories:
 stable setup
 ```
 
-This will create:
-- `~/StableCaddy/` for Caddy configuration.
-- `~/StableCaddy/certs` for generated certificates.
-- `~/StableCaddy/Caddyfile` for Caddy configuration.
+This will create:  
+- `~/StableCaddy/` for Caddy configuration.  
+- `~/StableCaddy/certs` for generated certificates.  
+- `~/StableCaddy/Caddyfile` for Caddy configuration.  
 
 ## CLI Commands
 
@@ -69,11 +59,11 @@ Lists all registered apps and their domains.
 stable add /path/to/rails_app
 ```
 
-This will:
-- Register the app.
-- Add a `/etc/hosts` entry.
-- Generate local trusted HTTPS certificates.
-- Add a Caddy reverse proxy block.
+This will:  
+- Register the app.  
+- Add a `/etc/hosts` entry.  
+- Generate local trusted HTTPS certificates.  
+- Add a Caddy reverse proxy block.  
 - Reload Caddy.
 
 ### Remove a Rails app
@@ -82,10 +72,10 @@ This will:
 stable remove app_name
 ```
 
-This will:
-- Remove the app from registry.
-- Remove `/etc/hosts` entry.
-- Remove the Caddy reverse proxy block.
+This will:  
+- Remove the app from registry.  
+- Remove `/etc/hosts` entry.  
+- Remove the Caddy reverse proxy block.  
 - Reload Caddy.
 
 ### Start an app
@@ -94,7 +84,7 @@ This will:
 rvmsudo stable start app_name
 ```
 
-Starts the Rails server on the app's assigned port and ensures Caddy is running with the proper reverse proxy. Rails logs can be viewed in your terminal.
+Starts the Rails server on the assigned port and ensures Caddy is running with the proper reverse proxy. Rails logs can be viewed in your terminal.
 
 ### Stop an app
 
@@ -102,12 +92,12 @@ Starts the Rails server on the app's assigned port and ensures Caddy is running 
 stable stop app_name
 ```
 
-Stops the Rails server.
+Stops the Rails server running on the assigned port.
 
 ### Secure an app manually
 
 ```bash
-stable secure app_name.test
+rvmsudo stable secure app_name.test
 ```
 
 Generates or updates trusted local HTTPS certificates and reloads Caddy.
@@ -120,53 +110,74 @@ stable caddy reload
 
 Reloads Caddy configuration after changes.
 
-### Create a new Rails app
-
-```bash
-stable new myapp [--ruby 3.4.4] [--rails 7.0.7] [--skip-ssl]
-```
-
-Creates a new Rails app, generates `.ruby-version`, sets up HTTPS, adds to registry, and starts the app.
-
-### Upgrade Ruby for an app
-
-```bash
-stable upgrade-ruby app_name 3.4.4
-```
-
-Upgrades the Ruby version for an existing app and reconfigures its environment.
-
 ### Health check
 
 ```bash
 stable doctor
 ```
 
-Checks dependencies, Caddy, Ruby, Rails, and app connectivity.
+Checks the environment, RVM/Ruby, Caddy, mkcert, and app readiness.
+
+### Upgrade Ruby for an app
+
+```bash
+stable upgrade-ruby myapp 3.4.4
+```
+
+Upgrades the Ruby version for a specific app, updating `.ruby-version` and ensuring gemset compatibility.
+
+### Create a new Rails app
+
+```bash
+stable new myapp [--ruby 3.4.4] [--rails 7.0.7.1] [--skip-ssl]
+```
+
+Creates a new Rails app, generates `.ruby-version`, installs Rails, adds the app to Stable, and optionally secures it with HTTPS.
 
 ## Paths
 
-- Caddy home: `~/StableCaddy`
-- Caddyfile: `~/StableCaddy/Caddyfile`
-- Certificates: `~/StableCaddy/certs`
-- Registered apps: `~/StableCaddy/apps.yml`
+- Caddy home: `~/StableCaddy`  
+- Caddyfile: `~/StableCaddy/Caddyfile`  
+- Certificates: `~/StableCaddy/certs`  
+- Registered apps: `~/StableCaddy/apps.yml`  
 
 ## Dependencies
 
-- Homebrew
-- Caddy
-- mkcert
+- Homebrew  
+- Caddy  
+- mkcert  
+- RVM (or rbenv fallback)
 
 `ensure_dependencies!` will install missing dependencies automatically.
 
+## Known Issues
+
+- Sometimes you may see:  
+```
+TCPSocket#initialize: Connection refused - connect(2) for "127.0.0.1" port 300.. (Errno::ECONNREFUSED)
+```
+This usually disappears after a few seconds when Caddy reloads. If it persists, run:
+
+```bash
+rvmsudo stable secure myapp.test
+```
+
+- Some commands may need to be run consecutively for proper setup:  
+```bash
+stable setup
+rvmsudo stable add myapp
+rvmsudo stable secure myapp.test
+stable start myapp
+```
+
+- PATH warnings from RVM may appear on the first run. Make sure your shell is properly configured for RVM.
+
 ## Notes
 
-- Make sure to run `stable setup` initially.
-- Requires `sudo` to modify `/etc/hosts`.
-- Caddy runs in the background by default.
-- Rails apps are started on dynamic ports by default.
-- Domains are automatically suffixed with `.test`.
-- Supports RVM and falls back to rbenv if RVM is unavailable.
+- Make sure to run `stable setup` initially.  
+- Requires `sudo` to modify `/etc/hosts`.  
+- Rails apps are started on ports assigned by Stable (default 3000+).  
+- Domains are automatically suffixed with `.test`.  
 
 ## License
 

@@ -24,10 +24,15 @@ cd stable-rails
 bundle install
 ```
 
-### As a gem
+### As a gem from Rubygems registry
 
 ```bash
-gem install stable
+gem install stable-cli-rails
+```
+
+### Or add it to your Gemfile
+```bash
+gem "stable-cli-rails" 
 ```
 
 ## Setup

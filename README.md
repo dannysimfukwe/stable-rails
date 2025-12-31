@@ -58,6 +58,14 @@ stable list
 
 Lists all registered apps and their domains.
 
+### Create a new Rails app
+
+```bash
+stable new myapp [--ruby 3.4.4] [--rails 7.0.7.1] [--skip-ssl]
+```
+
+Creates a new Rails app, generates `.ruby-version`, installs Rails, adds the app to Stable, and optionally secures it with HTTPS.
+
 ### Add a Rails app
 
 ```bash
@@ -130,14 +138,6 @@ stable upgrade-ruby myapp 3.4.4
 ```
 
 Upgrades the Ruby version for a specific app, updating `.ruby-version` and ensuring gemset compatibility.
-
-### Create a new Rails app
-
-```bash
-stable new myapp [--ruby 3.4.4] [--rails 7.0.7.1] [--skip-ssl]
-```
-
-Creates a new Rails app, generates `.ruby-version`, installs Rails, adds the app to Stable, and optionally secures it with HTTPS.
 
 ## Paths
 

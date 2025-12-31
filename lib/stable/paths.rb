@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Stable
   module Paths
     def self.root

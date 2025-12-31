@@ -1,7 +1,7 @@
 module Stable
   module Paths
     def self.root
-      File.expand_path("~/StableCaddy")
+      File.expand_path('~/StableCaddy')
     end
 
     def self.caddy_dir
@@ -9,15 +9,15 @@ module Stable
     end
 
     def self.caddyfile
-      File.join(caddy_dir, "Caddyfile")
+      File.join(caddy_dir, 'Caddyfile')
     end
 
     def self.certs_dir
-      File.join(root, "certs")
+      File.join(root, 'certs')
     end
 
     def self.apps_file
-      File.join(root, "apps.yml")
+      File.join(root, 'apps.yml')
     end
   end
 end

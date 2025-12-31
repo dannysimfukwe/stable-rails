@@ -1,4 +1,8 @@
-source "https://rubygems.org"
+source 'https://rubygems.org'
 
-gem "thor"
-gem "rake"
+gem 'rake'
+gem 'thor'
+
+group :development do
+  gem 'rubocop-rails-omakase', require: false
+end

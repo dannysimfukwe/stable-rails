@@ -75,8 +75,17 @@ module Stable
       puts "Starting Rails server for #{name} on port #{port}..."
       log_file = File.join(app_path, 'log', 'stable.log')
       FileUtils.mkdir_p(File.dirname(log_file))
-      pid = spawn("bash -lc 'rvm #{ruby}@#{name} do cd #{app_path} && bundle exec rails s -p #{port} >> #{log_file} 2>&1'")
+
+      pid = spawn(
+        'bash',
+        '-lc',
+        "cd #{app_path} && rvm #{ruby}@#{name} do bundle exec rails s -p #{port} -b 127.0.0.1",
+        out: log_file,
+        err: log_file
+      )
       Process.detach(pid)
+
+      sleep 1.5
 
       wait_for_port(port)
       puts "✔ #{name} running at https://#{domain}"
@@ -158,34 +167,29 @@ module Stable
       log_file = File.join(app[:path], 'log', 'stable.log')
       FileUtils.mkdir_p(File.dirname(log_file))
 
-      ruby_exec =
-        if ruby
-          if rvm_available?
-            ensure_rvm_ruby!(ruby)
-            "rvm #{ruby}@#{name} do"
-          elsif rbenv_available?
-            ensure_rbenv_ruby!(ruby)
-            "RBENV_VERSION=#{ruby}"
-          else
-            puts 'No Ruby version manager found (rvm or rbenv)'
-            return
-          end
+      if ruby
+        if rvm_available?
+          ensure_rvm_ruby!(ruby)
+          "rvm #{ruby}@#{name} do"
+        elsif rbenv_available?
+          ensure_rbenv_ruby!(ruby)
+          "RBENV_VERSION=#{ruby}"
+        else
+          puts 'No Ruby version manager found (rvm or rbenv)'
+          return
         end
-
-      cmd = <<~CMD
-        cd #{app[:path]} &&
-        #{ruby_exec} bundle exec rails s -p #{port}
-      CMD
+      end
 
       pid = spawn(
         'bash',
         '-lc',
-        cmd,
+        "cd #{app[:path]} && rvm #{ruby}@#{name} do bundle exec rails s -p #{port} -b 127.0.0.1",
         out: log_file,
         err: log_file
       )
-
       Process.detach(pid)
+
+      sleep 1.5
 
       generate_cert(app[:domain])
       update_caddyfile(app[:domain], port)
@@ -476,7 +480,7 @@ module Stable
       end
     end
 
-    def wait_for_port(port, timeout: 5)
+    def wait_for_port(port, timeout: 30)
       require 'socket'
       start_time = Time.now
       loop do

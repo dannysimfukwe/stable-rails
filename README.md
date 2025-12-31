@@ -170,8 +170,8 @@ stable secure myapp.test
 - Some commands may need to be run consecutively for proper setup:  
 ```bash
 stable setup
-rvmsudo stable add myapp
-rvmsudo stable secure myapp.test
+stable add myapp or stable new myapp
+stable secure myapp.test
 stable start myapp
 ```
 

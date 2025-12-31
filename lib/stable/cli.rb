@@ -6,7 +6,6 @@ require_relative "registry"
 
 module Stable
   class CLI < Thor
-
     HOSTS_FILE = "/etc/hosts".freeze
 
     def initialize(*)
@@ -37,10 +36,10 @@ module Stable
 
       # --- Install Rails in gemset if needed ---
       rails_version = rails || "latest"
-      rails_check = system("bash -lc 'rvm #{ruby}@#{name} do gem list -i rails#{rails ? " -v #{rails}" : ""}'")
+      rails_check = system("bash -lc 'rvm #{ruby}@#{name} do gem list -i rails#{rails ? " -v #{rails}" : ''}'")
       unless rails_check
         puts "Installing Rails #{rails_version} in gemset..."
-        system("bash -lc 'rvm #{ruby}@#{name} do gem install rails #{rails ? "-v #{rails}" : ""}'") or abort("Failed to install Rails")
+        system("bash -lc 'rvm #{ruby}@#{name} do gem install rails #{rails ? "-v #{rails}" : ''}'") or abort("Failed to install Rails")
       end
 
       # --- Create Rails app ---
@@ -153,7 +152,7 @@ module Stable
       port = app[:port] || next_free_port
       ruby = app[:ruby]
 
-      puts "Starting #{name} on port #{port}#{ruby ? " (Ruby #{ruby})" : ""}..."
+      puts "Starting #{name} on port #{port}#{ruby ? " (Ruby #{ruby})" : ''}..."
 
       log_file = File.join(app[:path], "log", "stable.log")
       FileUtils.mkdir_p(File.dirname(log_file))
@@ -244,14 +243,14 @@ module Stable
       puts "Stable doctor\n\n"
 
       puts "Ruby version: #{RUBY_VERSION}"
-      puts "RVM: #{rvm_available? ? "yes" : "no"}"
-      puts "rbenv: #{rbenv_available? ? "yes" : "no"}"
-      puts "Caddy: #{system("which caddy > /dev/null") ? "yes" : "no"}"
-      puts "mkcert: #{system("which mkcert > /dev/null") ? "yes" : "no"}"
+      puts "RVM: #{rvm_available? ? 'yes' : 'no'}"
+      puts "rbenv: #{rbenv_available? ? 'yes' : 'no'}"
+      puts "Caddy: #{system('which caddy > /dev/null') ? 'yes' : 'no'}"
+      puts "mkcert: #{system('which mkcert > /dev/null') ? 'yes' : 'no'}"
 
       Registry.apps.each do |app|
         status = port_in_use?(app[:port]) ? "running" : "stopped"
-        puts "#{app[:name]} → Ruby #{app[:ruby] || "default"} (#{status})"
+        puts "#{app[:name]} → Ruby #{app[:ruby] || 'default'} (#{status})"
       end
     end
 
@@ -294,14 +293,14 @@ module Stable
     end
 
     def remove_host_entry(domain)
-      begin
+      
         hosts = File.read(HOSTS_FILE)
         new_hosts = hosts.lines.reject { |line| line.include?(domain) }.join
         File.write(HOSTS_FILE, new_hosts)
         system("dscacheutil -flushcache; sudo killall -HUP mDNSResponder")
       rescue Errno::EACCES
         puts "Permission denied updating #{HOSTS_FILE}. Run 'sudo stable remove #{domain}' to remove hosts entry."
-      end
+      
     end
 
     def ensure_hosts_entry(domain)
@@ -320,7 +319,7 @@ module Stable
     end
 
     def secure_app(domain, _folder, port)
-      ensure_certs_dir! 
+      ensure_certs_dir!
 
       cert_path = File.join(Stable::Paths.certs_dir, "#{domain}.pem")
       key_path  = File.join(Stable::Paths.certs_dir, "#{domain}-key.pem")
@@ -341,7 +340,7 @@ module Stable
     end
 
     def add_caddy_block(domain, cert, key, port)
-        caddyfile = Stable::Paths.caddyfile
+      caddyfile = Stable::Paths.caddyfile
         FileUtils.touch(caddyfile) unless File.exist?(caddyfile)
         content = File.read(caddyfile)
 
@@ -357,15 +356,15 @@ module Stable
 
         File.write(caddyfile, content + block)
         system("caddy fmt --overwrite #{caddyfile}")
-      end
-
+    end
 
     # Remove Caddyfile entry for the domain
     def remove_caddy_entry(domain)
       return unless File.exist?(Stable::Paths.caddyfile)
+
       content = File.read(Stable::Paths.caddyfile)
       # Remove block starting with https://<domain> { ... }
-      new_content = content.gsub(/https:\/\/#{Regexp.escape(domain)}\s*\{[^\}]*\}/m, "")
+      new_content = content.gsub(%r{https://#{Regexp.escape(domain)}\s*\{[^}]*\}}m, "")
       File.write(Stable::Paths.caddyfile, new_content)
     end
 
@@ -380,12 +379,13 @@ module Stable
         system("brew install caddy")
       end
 
-      unless system("which mkcert > /dev/null")
+      return if system("which mkcert > /dev/null")
         puts "Installing mkcert..."
         system("brew install mkcert nss")
         system("mkcert -install")
-      end
+      
     end
+
     def ensure_caddy_running!
       api_port = 2019
 
@@ -400,7 +400,6 @@ module Stable
         sleep 3
       end
     end
-
 
     def next_free_port
       used_ports = Registry.apps.map { |a| a[:port] }
@@ -418,13 +417,13 @@ module Stable
       key_path  = File.join(Stable::Paths.certs_dir, "#{domain}-key.pem")
       FileUtils.mkdir_p(Stable::Paths.certs_dir)
 
-      unless File.exist?(cert_path) && File.exist?(key_path)
+      return if File.exist?(cert_path) && File.exist?(key_path)
         if system("which mkcert > /dev/null")
           system("mkcert -cert-file #{cert_path} -key-file #{key_path} #{domain}")
         else
           puts "mkcert not found. Please install mkcert."
         end
-      end
+      
     end
 
     def update_caddyfile(domain, port)
@@ -433,7 +432,7 @@ module Stable
       content = File.read(caddyfile)
 
       # remove existing block for domain
-      content.gsub!(/https:\/\/#{Regexp.escape(domain)}\s*\{[^\}]*\}/m, "")
+      content.gsub!(%r{https://#{Regexp.escape(domain)}\s*\{[^}]*\}}m, "")
 
       # add new block
       cert_path = File.join(Stable::Paths.certs_dir, "#{domain}.pem")
@@ -456,13 +455,13 @@ module Stable
 
       begin
         FileUtils.chown_R(Etc.getlogin, nil, certs_dir)
-      rescue => e
+      rescue StandardError => e
         puts "Could not change ownership: #{e.message}"
       end
 
       # Restrict permissions for security
       Dir.glob("#{certs_dir}/*.pem").each do |pem|
-        FileUtils.chmod(0600, pem)
+        FileUtils.chmod(0o600, pem)
       end
     end
 
@@ -470,13 +469,14 @@ module Stable
       require 'socket'
       start_time = Time.now
       loop do
-        begin
+        
           TCPSocket.new('127.0.0.1', port).close
           break
         rescue Errno::ECONNREFUSED
           raise "Timeout waiting for port #{port}" if Time.now - start_time > timeout
+
           sleep 0.1
-        end
+        
       end
     end
 
@@ -489,15 +489,11 @@ module Stable
         curl -sSL https://get.rvm.io | bash -s stable
       CMD
 
-      unless system(install_cmd)
-        abort "RVM installation failed"
-      end
+      abort "RVM installation failed" unless system(install_cmd)
 
       # Load RVM into current process
       rvm_script = File.expand_path("~/.rvm/scripts/rvm")
-      unless File.exist?(rvm_script)
-        abort "RVM installed but could not be loaded"
-      end
+      abort "RVM installed but could not be loaded" unless File.exist?(rvm_script)
 
       ENV["PATH"] = "#{File.expand_path('~/.rvm/bin')}:#{ENV['PATH']}"
 
@@ -540,6 +536,5 @@ module Stable
     def ensure_rbenv_ruby!(version)
       system("rbenv versions | grep -q #{version} || rbenv install #{version}")
     end
-
   end
 end

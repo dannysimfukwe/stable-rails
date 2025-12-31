@@ -1,10 +1,10 @@
-require "yaml"
-require "fileutils"
+require 'yaml'
+require 'fileutils'
 
 module Stable
   class Registry
     def self.file_path
-      File.join(Stable.root, "apps.yml")
+      File.join(Stable.root, 'apps.yml')
     end
 
     def self.save(apps)

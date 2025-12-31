@@ -1,4 +1,3 @@
-
 module Stable
   class Scanner
     def self.run

@@ -86,7 +86,7 @@ This will:
 ### Start an app
 
 ```bash
-rvmsudo stable start app_name
+stable start app_name
 ```
 
 Starts the Rails server on the assigned port and ensures Caddy is running with the proper reverse proxy. Rails logs can be viewed in your terminal.
@@ -102,7 +102,7 @@ Stops the Rails server running on the assigned port.
 ### Secure an app manually
 
 ```bash
-rvmsudo stable secure app_name.test
+stable secure app_name.test
 ```
 
 Generates or updates trusted local HTTPS certificates and reloads Caddy.
@@ -164,7 +164,7 @@ TCPSocket#initialize: Connection refused - connect(2) for "127.0.0.1" port 300..
 This usually disappears after a few seconds when Caddy reloads. If it persists, run:
 
 ```bash
-rvmsudo stable secure myapp.test
+stable secure myapp.test
 ```
 
 - Some commands may need to be run consecutively for proper setup:  

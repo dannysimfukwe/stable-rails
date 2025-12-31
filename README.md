@@ -10,6 +10,9 @@ Stable is a CLI tool to manage local Rails applications with automatic Caddy set
 - Start Rails apps with integrated Caddy reverse proxy.
 - Reload Caddy after adding/removing apps.
 - List all registered apps.
+- Create a new Rails app with automatic setup.
+- Upgrade Ruby versions for existing apps.
+- Run a health check with `stable doctor`.
 
 ## Installation
 
@@ -19,6 +22,14 @@ Make sure you have:
 - [Rails](https://rubyonrails.org)
 
 Then install Stable:
+
+### As a gem
+
+```bash
+gem install stable
+```
+
+### From source
 
 ```bash
 # Clone the repository
@@ -83,7 +94,7 @@ This will:
 rvmsudo stable start app_name
 ```
 
-Starts the Rails server on port 3000 and ensures Caddy is running with the proper reverse proxy. Rails logs can be viewed in your terminal.
+Starts the Rails server on the app's assigned port and ensures Caddy is running with the proper reverse proxy. Rails logs can be viewed in your terminal.
 
 ### Stop an app
 
@@ -91,7 +102,7 @@ Starts the Rails server on port 3000 and ensures Caddy is running with the prope
 stable stop app_name
 ```
 
-Stops the Rails server running on port 3000.
+Stops the Rails server.
 
 ### Secure an app manually
 
@@ -108,6 +119,30 @@ stable caddy reload
 ```
 
 Reloads Caddy configuration after changes.
+
+### Create a new Rails app
+
+```bash
+stable new myapp [--ruby 3.4.4] [--rails 7.0.7] [--skip-ssl]
+```
+
+Creates a new Rails app, generates `.ruby-version`, sets up HTTPS, adds to registry, and starts the app.
+
+### Upgrade Ruby for an app
+
+```bash
+stable upgrade-ruby app_name 3.4.4
+```
+
+Upgrades the Ruby version for an existing app and reconfigures its environment.
+
+### Health check
+
+```bash
+stable doctor
+```
+
+Checks dependencies, Caddy, Ruby, Rails, and app connectivity.
 
 ## Paths
 
@@ -128,11 +163,11 @@ Reloads Caddy configuration after changes.
 
 - Make sure to run `stable setup` initially.
 - Requires `sudo` to modify `/etc/hosts`.
-- Caddy runs on background by default but logs can be checked in your terminal if `spawn` is configured with stdout/stderr attached.
-- Rails apps are started on port 3000 by default.
+- Caddy runs in the background by default.
+- Rails apps are started on dynamic ports by default.
 - Domains are automatically suffixed with `.test`.
+- Supports RVM and falls back to rbenv if RVM is unavailable.
 
 ## License
 
 MIT License
-

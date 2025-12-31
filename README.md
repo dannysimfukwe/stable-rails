@@ -1,6 +1,6 @@
-# Stable CLI (MacOs)
+# Stable CLI (macOS)
 
-Stable is a CLI tool to manage local Rails applications with automatic Caddy setup on macOs, local trusted HTTPS certificates, and easy start/stop functionality.
+Stable is a CLI tool to manage local Rails applications with automatic Caddy setup on macOS, local trusted HTTPS certificates, and easy start/stop functionality.
 
 ## Features
 

@@ -14,9 +14,73 @@ module Stable
       Stable::Bootstrap.run!
       ensure_dependencies!
     end
+
     def self.exit_on_failure?
       true
     end
+
+    desc "new NAME", "Create, secure, and run a new Rails app"
+    method_option :ruby, type: :string, desc: "Ruby version (defaults to current Ruby)"
+    method_option :rails, type: :string, desc: "Rails version to install (optional)"
+    method_option :port, type: :numeric, desc: "Port to run Rails app on"
+    method_option :skip_ssl, type: :boolean, default: false, desc: "Skip HTTPS setup"
+    def new(name, ruby: RUBY_VERSION, rails: nil, port: nil)
+      port ||= next_free_port
+      app_path = File.expand_path(name)
+
+      abort "Folder already exists: #{app_path}" if File.exist?(app_path)
+
+      # --- Ensure RVM and Ruby ---
+      ensure_rvm!
+      puts "Using Ruby #{ruby} with RVM gemset #{name}..."
+      system("bash -lc 'rvm #{ruby}@#{name} --create do true'") or abort("Failed to create RVM gemset")
+
+      # --- Install Rails in gemset if needed ---
+      rails_version = rails || "latest"
+      rails_check = system("bash -lc 'rvm #{ruby}@#{name} do gem list -i rails#{rails ? " -v #{rails}" : ""}'")
+      unless rails_check
+        puts "Installing Rails #{rails_version} in gemset..."
+        system("bash -lc 'rvm #{ruby}@#{name} do gem install rails #{rails ? "-v #{rails}" : ""}'") or abort("Failed to install Rails")
+      end
+
+      # --- Create Rails app ---
+      puts "Creating Rails app #{name} (Ruby #{ruby})..."
+      system("bash -lc 'rvm #{ruby}@#{name} do rails new #{app_path}'") or abort("Rails app creation failed")
+
+      # --- Add .ruby-version and .ruby-gemset ---
+      Dir.chdir(app_path) do
+        File.write(".ruby-version", "#{ruby}\n")
+        File.write(".ruby-gemset", "#{name}\n")
+
+        # --- Install gems inside gemset ---
+        puts "Running bundle install..."
+        system("bash -lc 'rvm #{ruby}@#{name} do bundle install --jobs=4 --retry=3'") or abort("bundle install failed")
+      end
+
+      # --- Add app to registry ---
+      domain = "#{name}.test"
+      apps = Registry.apps
+      apps << { name: name, path: app_path, domain: domain, port: port, ruby: ruby }
+      Registry.save(apps)
+
+      # --- Host entry & certificate ---
+      add_host_entry(domain)
+      generate_cert(domain) unless options[:skip_ssl]
+      update_caddyfile(domain, port)
+      ensure_caddy_running!
+      caddy_reload
+
+      # --- Start Rails server ---
+      puts "Starting Rails server for #{name} on port #{port}..."
+      log_file = File.join(app_path, "log", "stable.log")
+      FileUtils.mkdir_p(File.dirname(log_file))
+      pid = spawn("bash -lc 'rvm #{ruby}@#{name} do cd #{app_path} && bundle exec rails s -p #{port} >> #{log_file} 2>&1'")
+      Process.detach(pid)
+
+      wait_for_port(port)
+      puts "✔ #{name} running at https://#{domain}"
+    end
+
 
     desc "list", "List detected apps"
     def list
@@ -48,8 +112,9 @@ module Stable
       end
 
       port = next_free_port
+      ruby = detect_ruby_version(folder)
 
-      apps << { name: name, path: folder, domain: domain, port: port }
+      apps << { name: name, path: folder, domain: domain, port: port, ruby: ruby }
       Registry.save(apps)
       puts "Added #{name} -> https://#{domain} (port #{port})"
 
@@ -77,7 +142,7 @@ module Stable
       caddy_reload
     end
 
-    desc "start NAME", "Start a Rails app (default port 3000) and ensure Caddy proxy"
+    desc "start NAME", "Start a Rails app with its correct Ruby version"
     def start(name)
       app = Registry.apps.find { |a| a[:name] == name }
       unless app
@@ -86,18 +151,48 @@ module Stable
       end
 
       port = app[:port] || next_free_port
-      puts "Starting Rails server for #{name} on port #{port}..."
+      ruby = app[:ruby]
+
+      puts "Starting #{name} on port #{port}#{ruby ? " (Ruby #{ruby})" : ""}..."
 
       log_file = File.join(app[:path], "log", "stable.log")
       FileUtils.mkdir_p(File.dirname(log_file))
-      pid = spawn("cd #{app[:path]} && bundle exec rails s -p #{port} >> #{log_file} 2>&1")
+
+      ruby_exec =
+        if ruby
+          if rvm_available?
+            ensure_rvm_ruby!(ruby)
+            "rvm #{ruby}@#{name} do"
+          elsif rbenv_available?
+            ensure_rbenv_ruby!(ruby)
+            "RBENV_VERSION=#{ruby}"
+          else
+            puts "No Ruby version manager found (rvm or rbenv)"
+            return
+          end
+        end
+
+      cmd = <<~CMD
+        cd #{app[:path]} &&
+        #{ruby_exec} bundle exec rails s -p #{port}
+      CMD
+
+      pid = spawn(
+        "bash",
+        "-lc",
+        cmd,
+        out: log_file,
+        err: log_file
+      )
+
       Process.detach(pid)
-      puts "Rails logs are in #{log_file}"
 
       generate_cert(app[:domain])
       update_caddyfile(app[:domain], port)
       wait_for_port(port)
       caddy_reload
+
+      puts "#{name} started on https://#{app[:domain]}"
     end
 
     desc "stop NAME", "Stop a Rails app (default port 3000)"
@@ -122,7 +217,6 @@ module Stable
     end
 
     desc "caddy reload", "Reloads Caddy after adding/removing apps"
-
     def caddy_reload
       if system("which caddy > /dev/null")
         system("caddy reload --config #{Stable::Paths.caddyfile}")
@@ -142,6 +236,47 @@ module Stable
       secure_app(domain, app[:path], app[:port])
       caddy_reload
       puts "Secured https://#{domain}"
+    end
+
+
+    desc "doctor", "Check Stable system health"
+    def doctor
+      puts "Stable doctor\n\n"
+
+      puts "Ruby version: #{RUBY_VERSION}"
+      puts "RVM: #{rvm_available? ? "yes" : "no"}"
+      puts "rbenv: #{rbenv_available? ? "yes" : "no"}"
+      puts "Caddy: #{system("which caddy > /dev/null") ? "yes" : "no"}"
+      puts "mkcert: #{system("which mkcert > /dev/null") ? "yes" : "no"}"
+
+      Registry.apps.each do |app|
+        status = port_in_use?(app[:port]) ? "running" : "stopped"
+        puts "#{app[:name]} → Ruby #{app[:ruby] || "default"} (#{status})"
+      end
+    end
+
+    desc "upgrade-ruby NAME VERSION", "Upgrade Ruby for an app"
+    def upgrade_ruby(name, version)
+      app = Registry.apps.find { |a| a[:name] == name }
+      unless app
+        puts "No app named #{name}"
+        return
+      end
+
+      if rvm_available?
+        system("bash -lc 'rvm install #{version}'")
+      elsif rbenv_available?
+        system("rbenv install #{version}")
+      else
+        puts "No Ruby version manager found"
+        return
+      end
+
+      File.write(File.join(app[:path], ".ruby-version"), version)
+      app[:ruby] = version
+      Registry.save(Registry.apps)
+
+      puts "#{name} now uses Ruby #{version}"
     end
 
     private
@@ -344,5 +479,67 @@ module Stable
         end
       end
     end
+
+    def ensure_rvm!
+      return if system("which rvm > /dev/null")
+
+      puts "RVM not found. Installing RVM..."
+
+      install_cmd = <<~CMD
+        curl -sSL https://get.rvm.io | bash -s stable
+      CMD
+
+      unless system(install_cmd)
+        abort "RVM installation failed"
+      end
+
+      # Load RVM into current process
+      rvm_script = File.expand_path("~/.rvm/scripts/rvm")
+      unless File.exist?(rvm_script)
+        abort "RVM installed but could not be loaded"
+      end
+
+      ENV["PATH"] = "#{File.expand_path('~/.rvm/bin')}:#{ENV['PATH']}"
+
+      system(%(bash -lc "source #{rvm_script} && rvm --version")) ||
+        abort("RVM installed but not functional")
+    end
+
+    def ensure_ruby_installed!(version)
+      return if system("rvm list strings | grep ruby-#{version} > /dev/null")
+
+      puts "Installing Ruby #{version}..."
+      system("rvm install #{version}") || abort("Failed to install Ruby #{version}")
+    end
+
+    def detect_ruby_version(path)
+      rv = File.join(path, ".ruby-version")
+      return File.read(rv).strip if File.exist?(rv)
+
+      gemfile = File.join(path, "Gemfile")
+      if File.exist?(gemfile)
+        ruby_line = File.read(gemfile)[/^ruby ['"](.+?)['"]/, 1]
+        return ruby_line if ruby_line
+      end
+
+      nil
+    end
+
+    def rvm_available?
+      system("bash -lc 'command -v rvm > /dev/null'")
+    end
+
+    def rbenv_available?
+      system("command -v rbenv > /dev/null")
+    end
+
+    def ensure_rvm_ruby!(version)
+      system("bash -lc 'rvm list strings | grep -q #{version} || rvm install #{version}'")
+    end
+
+    def ensure_rbenv_ruby!(version)
+      system("rbenv versions | grep -q #{version} || rbenv install #{version}")
+    end
+
   end
 end

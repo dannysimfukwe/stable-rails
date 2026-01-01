@@ -13,19 +13,6 @@ Stable is a CLI tool to manage local Rails applications with automatic Caddy set
 
 ## Installation
 
-### From source
-
-```bash
-# Clone the repository
-git clone git@github.com:dannysimfukwe/stable-rails.git
-cd stable-rails
-
-# Install dependencies
-bundle install
-```
-
-### As a gem from Rubygems registry
-
 ```bash
 gem install stable-cli-rails
 ```

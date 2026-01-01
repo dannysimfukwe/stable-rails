@@ -14,6 +14,7 @@ Gem::Specification.new do |spec|
   spec.files         = Dir.glob('lib/**/*')
   spec.executables   = ['stable']
   spec.require_paths = ['lib']
+  spec.required_ruby_version = '>= 3.2.4'
 
   spec.add_dependency 'fileutils'
   spec.add_dependency 'thor'

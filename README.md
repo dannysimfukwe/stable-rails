@@ -6,7 +6,7 @@ Stable is a CLI tool to manage local Rails applications with automatic Caddy set
 
 - Add and remove Rails apps.
 - Automatically generate and manage local HTTPS certificates using `mkcert`.
-- Automatically update `/etc/hosts` for `.test` domains.
+- Automatically assign `.test` domains.
 - Start Rails apps with integrated Caddy reverse proxy.
 - Reload Caddy after adding/removing apps.
 - List all registered apps.
@@ -40,6 +40,7 @@ This will create:
 ### List apps
 
 ```bash
+# List all registered apps
 stable list
 ```
 
@@ -48,7 +49,11 @@ Lists all registered apps and their domains.
 ### Create a new Rails app
 
 ```bash
+# Create a new Rails app with options
 stable new myapp [--ruby 3.4.4] [--rails 8.1.1] [--skip-ssl] [--db my_db --mysql] [--db my_db --postgres]
+
+# Create a new Rails app with default sqlite
+stable new myapp
 ```
 
 Creates a new Rails app, generates `.ruby-version`, installs Rails, adds the app to Stable, and optionally secures it with HTTPS.
@@ -122,7 +127,7 @@ Generates or updates trusted local HTTPS certificates and reloads Caddy.
 ### Reload Caddy
 
 ```bash
-stable caddy reload
+stable caddy_reload
 ```
 
 Reloads Caddy configuration after changes.
@@ -156,8 +161,10 @@ Upgrades the Ruby version for a specific app, updating `.ruby-version` and ensur
 - Caddy  
 - mkcert  
 - RVM (or rbenv fallback)  
+- PostgreSQL
+- MySQL
 
-`ensure_dependencies!` will install missing dependencies automatically, including PostgreSQL and MySQL if missing.
+`stable` will install missing dependencies automatically, including PostgreSQL and MySQL if missing.
 
 ## Notes
 

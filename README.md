@@ -32,7 +32,7 @@ gem install stable-cli-rails
 
 ### Or add it to your Gemfile
 ```bash
-gem "stable-cli-rails" 
+gem "stable-cli-rails"
 ```
 
 ## Setup
@@ -61,10 +61,27 @@ Lists all registered apps and their domains.
 ### Create a new Rails app
 
 ```bash
-stable new myapp [--ruby 3.4.4] [--rails 7.0.7.1] [--skip-ssl]
+stable new myapp [--ruby 3.4.4] [--rails 8.1.1] [--skip-ssl] [--db my_db --mysql] [--db my_db --postgres]
 ```
 
 Creates a new Rails app, generates `.ruby-version`, installs Rails, adds the app to Stable, and optionally secures it with HTTPS.
+
+#### Database Support
+
+You can create Rails apps with integrated database support using the `--mysql` or `--postgres` flags. Stable will handle gem installation, database creation, and configuration automatically.
+
+```bash
+# Create a new Rails app with PostgreSQL
+stable new myapp --db my_db --postgres
+
+# Create a new Rails app with MySQL
+stable new myapp --db my_db --mysql
+```
+
+- The CLI will prompt for the database root username and password during setup.  
+- The corresponding gem (`pg` for PostgreSQL or `mysql2` for MySQL) will be added to the Gemfile automatically.  
+- `database.yml` will be configured for `development`, `test`, and `production` environments.  
+- The database will be created and prepared (`rails db:prepare`) automatically.  
 
 ### Add a Rails app
 
@@ -151,31 +168,9 @@ Upgrades the Ruby version for a specific app, updating `.ruby-version` and ensur
 - Homebrew  
 - Caddy  
 - mkcert  
-- RVM (or rbenv fallback)
+- RVM (or rbenv fallback)  
 
-`ensure_dependencies!` will install missing dependencies automatically.
-
-## Known Issues
-
-- Sometimes you may see:  
-```
-TCPSocket#initialize: Connection refused - connect(2) for "127.0.0.1" port 300.. (Errno::ECONNREFUSED)
-```
-This usually disappears after a few seconds when Caddy reloads. If it persists, run:
-
-```bash
-stable secure myapp.test
-```
-
-- Some commands may need to be run consecutively for proper setup:  
-```bash
-stable setup
-stable add myapp or stable new myapp
-stable secure myapp.test
-stable start myapp
-```
-
-- PATH warnings from RVM may appear on the first run. Make sure your shell is properly configured for RVM.
+`ensure_dependencies!` will install missing dependencies automatically, including PostgreSQL and MySQL if missing.
 
 ## Notes
 
@@ -187,3 +182,4 @@ stable start myapp
 ## License
 
 MIT License
+

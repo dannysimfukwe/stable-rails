@@ -2,7 +2,9 @@
 
 require 'thor'
 require 'etc'
+require 'tempfile'
 require 'fileutils'
+require 'io/console'
 require_relative 'scanner'
 require_relative 'registry'
 
@@ -26,6 +28,9 @@ module Stable
     method_option :rails, type: :string, desc: 'Rails version to install (optional)'
     method_option :port, type: :numeric, desc: 'Port to run Rails app on'
     method_option :skip_ssl, type: :boolean, default: false, desc: 'Skip HTTPS setup'
+    method_option :db, type: :string, desc: 'Database name to create and integrate'
+    method_option :postgres, type: :boolean, default: false, desc: 'Use Postgres for the database'
+    method_option :mysql, type: :boolean, default: false, desc: 'Use MySQL for the database'
     def new(name, ruby: RUBY_VERSION, rails: nil, port: nil)
       port ||= next_free_port
       app_path = File.expand_path(name)
@@ -74,6 +79,84 @@ module Stable
         puts 'Running bundle install...'
         system("bash -lc '#{ruby_cmd} bundle install --jobs=4 --retry=3'") or abort('bundle install failed')
       end
+
+      # --- Database integration ---
+      if options[:db]
+        adapter = if options[:postgres]
+                    :postgresql
+                  elsif options[:mysql]
+                    :mysql
+                  else
+                    :postgresql
+                  end
+
+        adapter == :postgresql ? 'postgresql' : 'mysql2'
+        gem_name = adapter == :postgresql ? 'pg' : 'mysql2'
+
+        gemfile_path = File.join(app_path, 'Gemfile')
+        unless File.read(gemfile_path).include?(gem_name)
+          File.open(gemfile_path, 'a') do |f|
+            f.puts "\n# Added by Stable CLI"
+            f.puts "gem '#{gem_name}'"
+          end
+          puts "✅ Added '#{gem_name}' gem to Gemfile"
+        end
+
+        # Ensure the gem is installed inside the gemset
+        system("bash -lc 'cd #{app_path} && rvm #{ruby}@#{name} do bundle install --jobs=4 --retry=3'") or abort('bundle install failed')
+
+        # --- Database setup ---
+        db = Stable::DBManager.new(options[:db], adapter: adapter)
+        creds = []
+
+        case adapter
+        when :postgresql
+          db.create
+        when :mysql
+          creds = create_mysql_db(options[:db]) # creates DB and returns creds
+          # Make sure mysql2 gem is loaded for Rails
+          system("bash -lc 'cd #{app_path} && rvm #{ruby}@#{name} do bundle exec gem list | grep mysql2'") || abort('mysql2 gem not found in gemset')
+        end
+
+        # --- Generate database.yml ---
+        db_config_path = File.join(app_path, 'config', 'database.yml')
+        base_config = {
+          'adapter' => adapter == :postgresql ? 'postgresql' : 'mysql2',
+          'encoding' => adapter == :postgresql ? 'unicode' : 'utf8mb4',
+          'pool' => 5,
+          'database' => options[:db],
+          'username' => adapter == :mysql ? creds[:user] : nil,
+          'password' => adapter == :mysql ? creds[:password] : nil,
+          'host' => 'localhost',
+          'auth_plugin' => adapter == :mysql ? 'caching_sha2_password' : ''
+        }
+
+        db_configs = {
+          'default' => base_config,
+          'development' => base_config,
+          'test' => base_config.merge('database' => "#{options[:db]}_test"),
+          'production' => base_config.merge('database' => "#{options[:db]}_prod")
+        }
+
+        File.write(db_config_path, db_configs.to_yaml)
+        puts "✅ Database '#{db.name}' configured in Rails app"
+
+        # --- Prepare the database ---
+        puts 'Preparing database...'
+        system("bash -lc 'cd #{app_path} && rvm #{ruby}@#{name} do bundle exec rails db:prepare'") or abort('Database preparation failed')
+      end
+
+      # --- Generate Caddyfile ---
+
+      puts 'Refreshing bundle environment...'
+      system(
+        "bash -lc 'cd #{app_path} && #{ruby_cmd} bundle check || #{ruby_cmd} bundle install'"
+      ) or abort('Bundler setup failed')
+
+      puts 'Preparing database...'
+      system(
+        "bash -lc 'cd #{app_path} && #{ruby_cmd} bundle exec rails db:prepare'"
+      ) or abort('Database preparation failed')
 
       # --- Host entry & certificate ---
       add_host_entry(domain)
@@ -412,17 +495,36 @@ module Stable
         exit 1
       end
 
+      # --- Install Caddy ---
       unless system('which caddy > /dev/null')
         puts 'Installing Caddy...'
         system('brew install caddy')
       end
 
-      return if system('which mkcert > /dev/null')
+      # --- Install mkcert ---
+      unless system('which mkcert > /dev/null')
+        puts 'Installing mkcert...'
+        system('brew install mkcert nss')
+        system('mkcert -install')
+      end
 
-      puts 'Installing mkcert...'
-      system('brew install mkcert nss')
-      system('mkcert -install')
+      # --- Install PostgreSQL ---
+      unless system('which psql > /dev/null')
+        puts 'Installing PostgreSQL...'
+        system('brew install postgresql')
+        system('brew services start postgresql')
+      end
+
+      # --- Install MySQL ---
+      unless system('which mysql > /dev/null')
+        puts 'Installing MySQL...'
+        system('brew install mysql')
+        system('brew services start mysql')
+      end
+
+      puts '✅ All dependencies are installed and running.'
     end
+
 
     def ensure_caddy_running!
       api_port = 2019
@@ -509,7 +611,7 @@ module Stable
       end
     end
 
-    def wait_for_port(port, timeout: 10)
+    def wait_for_port(port, timeout: 20)
       require 'socket'
       start = Time.now
 
@@ -618,6 +720,39 @@ module Stable
       else
         "rvm #{ruby} do"
       end
+    end
+
+    def create_mysql_db(db_name)
+      socket = %w[
+        /opt/homebrew/var/mysql/mysql.sock
+        /tmp/mysql.sock
+      ].find { |path| File.exist?(path) } || abort('MySQL socket not found')
+
+      print 'Enter MySQL root username (default: root): '
+      root_user = $stdin.gets.chomp
+      root_user = 'root' if root_user.empty?
+
+      print 'Enter MySQL root password (leave blank if none): '
+      root_password = $stdin.noecho(&:gets).chomp
+      puts
+
+      password_arg = root_password.empty? ? '' : "-p#{root_password}"
+
+      sql = <<~SQL
+        CREATE DATABASE IF NOT EXISTS #{db_name};
+        FLUSH PRIVILEGES;
+      SQL
+
+      require 'tempfile'
+      Tempfile.create(['db_setup', '.sql']) do |file|
+        file.write(sql)
+        file.flush
+        system("mysql --protocol=SOCKET --socket=#{socket} -u #{root_user} #{password_arg} < #{file.path}") or
+          abort("Failed to create MySQL DB '#{db_name}'")
+      end
+
+      puts "✅ MySQL database '#{db_name}' created/ready"
+      { user: root_user, password: root_password }
     end
   end
 end

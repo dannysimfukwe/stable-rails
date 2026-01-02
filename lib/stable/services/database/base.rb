@@ -7,6 +7,11 @@ module Stable
         def initialize(app_name:, app_path:)
           @app_name = app_name
           @app_path = app_path
+          @database_name = @app_name
+                           .downcase
+                           .gsub(/[^a-z0-9_]/, '_')
+                           .gsub(/_+/, '_')
+                           .gsub(/^_+|_+$/, '')
         end
 
         def prepare
@@ -22,10 +27,10 @@ module Stable
             'default' => base_config(creds),
             'development' => base_config(creds),
             'test' => base_config(creds).merge(
-              'database' => "#{@app_name}_test"
+              'database' => "#{@database_name}_test"
             ),
             'production' => base_config(creds).merge(
-              'database' => "#{@app_name}_production"
+              'database' => "#{@database_name}_production"
             )
           }
 

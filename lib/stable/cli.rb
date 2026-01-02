@@ -10,7 +10,6 @@ require_relative 'registry'
 
 module Stable
   class CLI < Thor
-
     def initialize(*)
       super
       Stable::Bootstrap.run!
@@ -31,7 +30,8 @@ module Stable
     method_option :postgres, type: :boolean, default: false, desc: 'Use Postgres for the database'
     method_option :mysql, type: :boolean, default: false, desc: 'Use MySQL for the database'
     def new(name, ruby: RUBY_VERSION, rails: nil, port: nil)
-      Commands::New.new(name, options).call
+      safe_name = Validators::AppName.call!(name)
+      Commands::New.new(safe_name, options).call
     end
 
     desc 'list', 'List detected apps'

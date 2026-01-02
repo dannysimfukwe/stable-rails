@@ -37,7 +37,7 @@ module Stable
         rvm_script = File.expand_path('~/.rvm/scripts/rvm')
         abort 'RVM installed but could not be loaded' unless File.exist?(rvm_script)
 
-        ENV['PATH'] = "#{File.expand_path('~/.rvm/bin')}:#{ENV['PATH']}"
+        ENV['PATH'] = "#{File.expand_path('~/.rvm/bin')}:#{ENV.fetch('PATH', nil)}"
 
         system(%(bash -lc "source #{rvm_script} && rvm --version")) || abort('RVM installed but not functional')
       end

@@ -13,7 +13,7 @@ module Stable
 
         def create_database(creds)
           System::Shell.run(
-            "mysql -u #{creds[:user]} -p#{creds[:password]} -e 'CREATE DATABASE IF NOT EXISTS #{@app_name};'"
+            "mysql -u #{creds[:user]} -p#{creds[:password]} -e 'CREATE DATABASE IF NOT EXISTS #{@database_name};'"
           )
         end
 
@@ -24,7 +24,7 @@ module Stable
             'adapter' => 'mysql2',
             'encoding' => 'utf8mb4',
             'pool' => 5,
-            'database' => @app_name,
+            'database' => @database_name,
             'username' => creds[:user],
             'password' => creds[:password],
             'host' => 'localhost'

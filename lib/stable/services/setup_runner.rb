@@ -21,7 +21,7 @@ module Stable
 
       def ensure_directories
         path = Stable::Paths.certs_dir
-        FileUtils.mkdir_p(path) unless Dir.exist?(path)
+        FileUtils.mkdir_p(path)
       end
 
       def ensure_apps_registry

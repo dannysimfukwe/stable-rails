@@ -15,7 +15,8 @@ module Stable
         domain = "#{@name}.test"
 
         # --- Register app in registry ---
-        Services::AppRegistry.add(name: @name, path: app_path, domain: domain, port: port, ruby: ruby, started_at: nil, pid: nil)
+        Services::AppRegistry.add(name: @name, path: app_path, domain: domain, port: port, ruby: ruby, started_at: nil,
+                                  pid: nil)
 
         abort "Folder already exists: #{app_path}" if File.exist?(app_path)
 
@@ -106,10 +107,10 @@ module Stable
         wait_for_port(port)
         prefix = @options[:skip_ssl] ? 'http' : 'https'
         display_domain = if @options[:skip_ssl]
-                          "#{domain}:#{port}"
-                        else
-                          domain
-                        end
+                           "#{domain}:#{port}"
+                         else
+                           domain
+                         end
 
         puts "✔ #{@name} running at #{prefix}://#{display_domain}"
       end

@@ -10,7 +10,6 @@ require_relative 'registry'
 
 module Stable
   class CLI < Thor
-    HOSTS_FILE = '/etc/hosts'
 
     def initialize(*)
       super

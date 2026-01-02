@@ -21,14 +21,7 @@ module Stable
       private
 
       def print_header
-        puts format(
-          '%-18s %-26s %-8s %-10s %-10s',
-          'APP',
-          'DOMAIN',
-          'PORT',
-          'RUBY',
-          'STATUS'
-        )
+        puts 'APP                DOMAIN                     PORT     RUBY       STATUS    '
         puts '-' * 78
       end
 

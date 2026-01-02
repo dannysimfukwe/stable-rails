@@ -5,7 +5,7 @@ module Stable
     module Database
       class Postgres < Base
         def setup
-          System::Shell.run("createdb #{@app_name}")
+          System::Shell.run("createdb #{@database_name}")
           prepare
         end
       end

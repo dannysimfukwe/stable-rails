@@ -25,6 +25,6 @@ RSpec.configure do |config|
   end
 
   config.after(:suite) do
-    FileUtils.remove_entry(TMP_STABLE_ROOT) if Dir.exist?(TMP_STABLE_ROOT)
+    FileUtils.rm_rf(TMP_STABLE_ROOT)
   end
 end

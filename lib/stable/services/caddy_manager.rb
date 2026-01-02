@@ -131,6 +131,7 @@ module Stable
 
           until valid_pem?(path)
             raise "Invalid PEM file: #{path}" if Time.now - start > timeout
+
             sleep 0.1
           end
         end
@@ -146,7 +147,11 @@ module Stable
 
           Dir.glob("#{certs_dir}/*.pem").each do |pem|
             mode = pem.end_with?('-key.pem') ? 0o600 : 0o644
-            FileUtils.chmod(mode, pem) rescue nil
+            begin
+              FileUtils.chmod(mode, pem)
+            rescue StandardError
+              nil
+            end
           end
         end
       end

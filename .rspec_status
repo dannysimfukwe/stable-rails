@@ -1,0 +1,32 @@
+example_id                                     | status | run_time        |
+---------------------------------------------- | ------ | --------------- |
+./spec/cli/cli_integration_spec.rb[1:1]        | passed | 0.09821 seconds |
+./spec/cli/cli_integration_spec.rb[1:2]        | passed | 0.06224 seconds |
+./spec/commands/doctor_spec.rb[1:1]            | passed | 0.00242 seconds |
+./spec/commands/list_spec.rb[1:1]              | passed | 0.00117 seconds |
+./spec/commands/list_spec.rb[1:2]              | passed | 0.00038 seconds |
+./spec/commands/new_spec.rb[1:1]               | passed | 0.00041 seconds |
+./spec/commands/remove_spec.rb[1:1]            | passed | 0.00092 seconds |
+./spec/commands/remove_spec.rb[1:2]            | passed | 0.00051 seconds |
+./spec/commands/restart_spec.rb[1:1]           | passed | 0.00034 seconds |
+./spec/commands/setup_spec.rb[1:1]             | passed | 0.00032 seconds |
+./spec/commands/start_spec.rb[1:1]             | passed | 0.00033 seconds |
+./spec/commands/stop_spec.rb[1:1]              | passed | 0.00031 seconds |
+./spec/services/app_registry_spec.rb[1:1]      | passed | 0.00278 seconds |
+./spec/services/app_registry_spec.rb[1:2]      | passed | 0.00098 seconds |
+./spec/services/app_restarter_spec.rb[1:1]     | passed | 0.00055 seconds |
+./spec/services/app_restarter_spec.rb[1:2]     | passed | 0.00043 seconds |
+./spec/services/caddy_manager_spec.rb[1:1]     | passed | 0.14774 seconds |
+./spec/services/database/mysql_spec.rb[1:1]    | passed | 0.00154 seconds |
+./spec/services/database/mysql_spec.rb[1:2]    | passed | 0.00042 seconds |
+./spec/services/database/postgres_spec.rb[1:1] | passed | 0.001 seconds   |
+./spec/services/database/postgres_spec.rb[1:2] | passed | 0.00031 seconds |
+./spec/services/db_manager_spec.rb[1:1:1]      | passed | 0.00026 seconds |
+./spec/services/db_manager_spec.rb[1:1:2]      | passed | 0.00048 seconds |
+./spec/services/db_manager_spec.rb[1:2:1]      | passed | 0.00034 seconds |
+./spec/services/db_manager_spec.rb[1:2:2]      | passed | 0.00041 seconds |
+./spec/services/db_manager_spec.rb[1:2:3]      | passed | 0.00035 seconds |
+./spec/services/db_manager_spec.rb[1:2:4]      | passed | 0.01934 seconds |
+./spec/services/hosts_manager_spec.rb[1:1]     | passed | 0.02278 seconds |
+./spec/services/process_manager_spec.rb[1:1]   | passed | 0.00186 seconds |
+./spec/services/setup_runner_spec.rb[1:1]      | passed | 0.00306 seconds |

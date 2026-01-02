@@ -15,7 +15,7 @@ module Stable
     def initialize(*)
       super
       Stable::Bootstrap.run!
-      ensure_dependencies!
+      Services::SetupRunner.ensure_dependencies!
       dedupe_registry!
     end
 
@@ -32,174 +32,12 @@ module Stable
     method_option :postgres, type: :boolean, default: false, desc: 'Use Postgres for the database'
     method_option :mysql, type: :boolean, default: false, desc: 'Use MySQL for the database'
     def new(name, ruby: RUBY_VERSION, rails: nil, port: nil)
-      port ||= next_free_port
-      app_path = File.expand_path(name)
-
-      # --- Add app to registry ---
-      domain = "#{name}.test"
-      apps = Registry.apps
-
-      app = {
-        name: name,
-        path: app_path,
-        domain: domain,
-        port: port,
-        ruby: ruby,
-        started_at: nil
-      }
-
-      apps.reject! { |a| a[:name] == name }
-      apps << app
-
-      abort "Folder already exists: #{app_path}" if File.exist?(app_path)
-
-      # --- Ensure RVM and Ruby ---
-      ensure_rvm!
-      puts "Using Ruby #{ruby} with RVM gemset #{name}..."
-      system("bash -lc 'rvm #{ruby}@#{name} --create do true'") or abort("Failed to create RVM gemset #{name}")
-      ruby_cmd = rvm_exec(app, ruby)
-      # --- Install Rails in gemset if needed ---
-      rails_version = rails || 'latest'
-      rails_check = system("bash -lc '#{ruby_cmd} gem list -i rails#{rails ? " -v #{rails}" : ''}'")
-      unless rails_check
-        puts "Installing Rails #{rails_version} in gemset..."
-        system("bash -lc '#{ruby_cmd} gem install rails #{rails ? "-v #{rails}" : ''}'") or abort('Failed to install Rails')
-      end
-
-      # --- Create Rails app ---
-      puts "Creating Rails app #{name} (Ruby #{ruby})..."
-      system("bash -lc '#{ruby_cmd} rails new #{app_path}'") or abort('Rails app creation failed')
-
-      # --- Add .ruby-version and .ruby-gemset ---
-      Dir.chdir(app_path) do
-        File.write('.ruby-version', "#{ruby}\n")
-        File.write('.ruby-gemset', "#{name}\n")
-
-        # --- Install gems inside gemset ---
-        puts 'Running bundle install...'
-        system("bash -lc '#{ruby_cmd} bundle install --jobs=4 --retry=3'") or abort('bundle install failed')
-      end
-
-      # --- Database integration ---
-      if options[:db]
-        adapter = if options[:postgres]
-                    :postgresql
-                  elsif options[:mysql]
-                    :mysql
-                  else
-                    :postgresql
-                  end
-
-        adapter == :postgresql ? 'postgresql' : 'mysql2'
-        gem_name = adapter == :postgresql ? 'pg' : 'mysql2'
-
-        gemfile_path = File.join(app_path, 'Gemfile')
-        unless File.read(gemfile_path).include?(gem_name)
-          File.open(gemfile_path, 'a') do |f|
-            f.puts "\n# Added by Stable CLI"
-            f.puts "gem '#{gem_name}'"
-          end
-          puts "✅ Added '#{gem_name}' gem to Gemfile"
-        end
-
-        # Ensure the gem is installed inside the gemset
-        system("bash -lc 'cd #{app_path} && rvm #{ruby}@#{name} do bundle install --jobs=4 --retry=3'") or abort('bundle install failed')
-
-        # --- Database setup ---
-        db = Stable::DBManager.new(options[:db], adapter: adapter)
-        creds = []
-
-        case adapter
-        when :postgresql
-          db.create
-        when :mysql
-          creds = create_mysql_db(options[:db]) # creates DB and returns creds
-          # Make sure mysql2 gem is loaded for Rails
-          system("bash -lc 'cd #{app_path} && rvm #{ruby}@#{name} do bundle exec gem list | grep mysql2'") || abort('mysql2 gem not found in gemset')
-        end
-
-        # --- Generate database.yml ---
-        db_config_path = File.join(app_path, 'config', 'database.yml')
-        base_config = {
-          'adapter' => adapter == :postgresql ? 'postgresql' : 'mysql2',
-          'encoding' => adapter == :postgresql ? 'unicode' : 'utf8mb4',
-          'pool' => 5,
-          'database' => options[:db],
-          'username' => adapter == :mysql ? creds[:user] : nil,
-          'password' => adapter == :mysql ? creds[:password] : nil,
-          'host' => 'localhost',
-          'auth_plugin' => adapter == :mysql ? 'caching_sha2_password' : ''
-        }
-
-        db_configs = {
-          'default' => base_config,
-          'development' => base_config,
-          'test' => base_config.merge('database' => "#{options[:db]}_test"),
-          'production' => base_config.merge('database' => "#{options[:db]}_prod")
-        }
-
-        File.write(db_config_path, db_configs.to_yaml)
-        puts "✅ Database '#{db.name}' configured in Rails app"
-
-        # --- Prepare the database ---
-        puts 'Preparing database...'
-        system("bash -lc 'cd #{app_path} && rvm #{ruby}@#{name} do bundle exec rails db:prepare'") or abort('Database preparation failed')
-      end
-
-      # --- Generate Caddyfile ---
-
-      puts 'Refreshing bundle environment...'
-      system(
-        "bash -lc 'cd #{app_path} && #{ruby_cmd} bundle check || #{ruby_cmd} bundle install'"
-      ) or abort('Bundler setup failed')
-
-      puts 'Preparing database...'
-      system(
-        "bash -lc 'cd #{app_path} && #{ruby_cmd} bundle exec rails db:prepare'"
-      ) or abort('Database preparation failed')
-
-      # --- Host entry & certificate ---
-      add_host_entry(domain)
-      generate_cert(domain) unless options[:skip_ssl]
-      update_caddyfile(domain, port)
-      ensure_caddy_running!
-      caddy_reload
-
-      # --- Start Rails server ---
-      puts "Starting Rails server for #{name} on port #{port}..."
-      log_file = File.join(app_path, 'log', 'stable.log')
-      FileUtils.mkdir_p(File.dirname(log_file))
-
-      abort "Port #{port} is already in use. Choose another port." if app_running?({ port: port })
-
-      pid = spawn(
-        'bash',
-        '-lc',
-        "cd #{app_path} && #{ruby_cmd} bundle exec rails s -p #{port} -b 127.0.0.1",
-        out: log_file,
-        err: log_file
-      )
-      Process.detach(pid)
-
-      app[:started_at] = Time.now.to_i
-      Registry.save(apps)
-
-      sleep 1.5
-
-      wait_for_port(port)
-      puts "✔ #{name} running at https://#{domain}"
+      Commands::New.new(name, options).call
     end
 
     desc 'list', 'List detected apps'
     def list
-      apps = Registry.apps
-      if apps.empty?
-        puts 'No apps found.'
-      else
-        apps.each do |app|
-          puts "#{app[:name]} -> https://#{app[:domain]}"
-        end
-      end
+      Commands::List.new.call
     end
 
     desc 'add FOLDER', 'Add a Rails app folder'
@@ -212,175 +50,90 @@ module Stable
 
       puts "Detected gemset: #{File.read('.ruby-gemset').strip}" if File.exist?('.ruby-gemset')
 
-      apps = Registry.apps
       name = File.basename(folder)
       domain = "#{name}.test"
 
-      if apps.any? { |a| a[:path] == folder }
+      if Services::AppRegistry.all.any? { |a| a[:path] == folder }
         puts "App already exists: #{name}"
         return
       end
 
       port = next_free_port
-      ruby = detect_ruby_version(folder)
+      ruby = Stable::Services::Ruby.detect_ruby_version(folder)
 
-      apps << { name: name, path: folder, domain: domain, port: port, ruby: ruby }
-      Registry.save(apps)
+      app = { name: name, path: folder, domain: domain, port: port, ruby: ruby }
+      Services::AppRegistry.add_app(app)
       puts "Added #{name} -> https://#{domain} (port #{port})"
 
-      add_host_entry(domain)
-      generate_cert(domain)
-      update_caddyfile(domain, port)
-      caddy_reload
+      Services::HostsManager.add(domain)
+      Services::CaddyManager.add_app(name, skip_ssl: options[:skip_ssl])
+      Services::CaddyManager.reload
     end
 
     desc 'remove NAME', 'Remove an app by name'
     def remove(name)
-      apps = Registry.apps
-      app = apps.find { |a| a[:name] == name }
-      if app.nil?
-        puts "No app found with name #{name}"
-        return
-      end
-
-      new_apps = apps.reject { |a| a[:name] == name }
-      Registry.save(new_apps)
-      puts "Removed #{name}"
-
-      remove_host_entry(app[:domain])
-      remove_caddy_entry(app[:domain])
-      caddy_reload
+      Commands::Remove.new(name).call
     end
 
     desc 'start NAME', 'Start a Rails app with its correct Ruby version'
     def start(name)
-      app = Registry.apps.find { |a| a[:name] == name }
-      return puts("No app found with name #{name}") unless app
+      Commands::Start.new(name).call
+    end
 
-      port = app[:port] || next_free_port
-      ruby = app[:ruby]
-      path = app[:path]
-
-      if app_running?(app)
-        puts "#{name} is already running on https://#{app[:domain]} (port #{port})"
-        return
-      end
-
-      gemset = gemset_for(app)
-
-      rvm_cmd =
-        if ruby && gemset
-          system("bash -lc 'rvm #{ruby}@#{gemset} --create do true'")
-          "rvm #{ruby}@#{gemset} do"
-        elsif ruby
-          "rvm #{ruby} do"
-        end
-
-      puts "Starting #{name} on port #{port}..."
-
-      log_file = File.join(path, 'log', 'stable.log')
-      FileUtils.mkdir_p(File.dirname(log_file))
-
-      pid = spawn(
-        'bash',
-        '-lc',
-        <<~CMD,
-          cd "#{path}"
-          #{rvm_cmd} bundle exec rails s \
-            -p #{port} \
-            -b 127.0.0.1
-        CMD
-        out: log_file,
-        err: log_file
-      )
-
-      Process.detach(pid)
-
-      wait_for_port(port, timeout: 30)
-
-      app[:started_at] = Time.now.to_i
-      Registry.save(Registry.apps)
-
-      generate_cert(app[:domain])
-      update_caddyfile(app[:domain], port)
-      caddy_reload
-
-      puts "#{name} started on https://#{app[:domain]}"
+    desc 'restart NAME', 'Restart a Rails app'
+    def restart(name)
+      Commands::Restart.new(name).call
     end
 
     desc 'stop NAME', 'Stop a Rails app (default port 3000)'
     def stop(name)
-      app = Registry.apps.find { |a| a[:name] == name }
-
-      output = `lsof -i tcp:#{app[:port]} -t`.strip
-      if output.empty?
-        puts "No app running on port #{app[:port]}"
-      else
-        output.split("\n").each { |pid| Process.kill('TERM', pid.to_i) }
-        puts "Stopped #{name}"
-      end
+      Commands::Stop.new(name).call
     end
 
     desc 'setup', 'Sets up Caddy and local trusted certificates'
     def setup
-      FileUtils.mkdir_p(Stable::Paths.root)
-      File.write(Stable::Paths.caddyfile, '') unless File.exist?(Stable::Paths.caddyfile)
-      ensure_caddy_running!
-      puts "Caddy home initialized at #{Stable::Paths.root}"
+      Commands::Setup.new.call
     end
 
     desc 'caddy reload', 'Reloads Caddy after adding/removing apps'
     def caddy_reload
-      if system('which caddy > /dev/null')
-        system("caddy reload --config #{Stable::Paths.caddyfile}")
-        puts 'Caddy reloaded'
-      else
-        puts 'Caddy not found. Install Caddy first.'
-      end
+      Services::CaddyManager.reload
+      puts 'Caddy reloaded'
     end
 
     desc 'secure DOMAIN', 'Generate trusted local HTTPS cert for a specific folder/domain'
     def secure(domain)
-      app = Registry.apps.find { |a| a[:domain] == domain }
+      apps = Services::AppRegistry.all
+      app = apps.find { |a| a[:domain] == domain }
+      app ||= apps.find { |a| a[:name] == domain }
+      app ||= apps.find { |a| a[:domain] == "#{domain}.test" }
+
       unless app
         puts "No app found with domain #{domain}"
         return
       end
-      secure_app(domain, app[:path], app[:port])
-      caddy_reload
-      puts "Secured https://#{domain}"
+
+      Services::CaddyManager.add_app(app[:name], skip_ssl: true)
+      Services::CaddyManager.reload
+      puts "Secured https://#{app[:domain]}"
     end
 
     desc 'doctor', 'Check Stable system health'
     def doctor
-      puts "Stable doctor\n\n"
-
-      puts "Ruby version: #{RUBY_VERSION}"
-      puts "RVM: #{rvm_available? ? 'yes' : 'no'}"
-      puts "rbenv: #{rbenv_available? ? 'yes' : 'no'}"
-      puts "Caddy: #{system('which caddy > /dev/null') ? 'yes' : 'no'}"
-      puts "mkcert: #{system('which mkcert > /dev/null') ? 'yes' : 'no'}"
-
-      Registry.apps.each do |app|
-        state = boot_state(app)
-        ruby  = app[:ruby] || 'default'
-        port  = app[:port]
-
-        puts "#{app[:name]} → Ruby #{ruby} | port #{port} | #{state}"
-      end
+      Commands::Doctor.new.call
     end
 
     desc 'upgrade-ruby NAME VERSION', 'Upgrade Ruby for an app'
     def upgrade_ruby(name, version)
-      app = Registry.apps.find { |a| a[:name] == name }
+      app = Services::AppRegistry.find(name)
       unless app
         puts "No app named #{name}"
         return
       end
 
-      if rvm_available?
+      if Stable::Services::Ruby.rvm_available?
         system("bash -lc 'rvm install #{version}'")
-      elsif rbenv_available?
+      elsif Stable::Services::Ruby.rbenv_available?
         system("rbenv install #{version}")
       else
         puts 'No Ruby version manager found'
@@ -388,161 +141,15 @@ module Stable
       end
 
       File.write(File.join(app[:path], '.ruby-version'), version)
-      app[:ruby] = version
-      Registry.save(Registry.apps)
+      Services::AppRegistry.update(name, ruby: version)
 
       puts "#{name} now uses Ruby #{version}"
     end
 
     private
 
-    def add_host_entry(domain)
-      entry = "127.0.0.1\t#{domain}"
-      hosts = File.read(HOSTS_FILE)
-      unless hosts.include?(domain)
-        puts "Adding #{domain} to #{HOSTS_FILE}..."
-        File.open(HOSTS_FILE, 'a') { |f| f.puts entry }
-        system('dscacheutil -flushcache; sudo killall -HUP mDNSResponder')
-      end
-    rescue Errno::EACCES
-      ensure_hosts_entry(domain)
-    end
-
-    def remove_host_entry(domain)
-      hosts = File.read(HOSTS_FILE)
-      new_hosts = hosts.lines.reject { |line| line.include?(domain) }.join
-      File.write(HOSTS_FILE, new_hosts)
-      system('dscacheutil -flushcache; sudo killall -HUP mDNSResponder')
-    rescue Errno::EACCES
-      puts "Permission denied updating #{HOSTS_FILE}. Run 'sudo stable remove #{domain}' to remove hosts entry."
-    end
-
-    def ensure_hosts_entry(domain)
-      entry = "127.0.0.1\t#{domain}"
-
-      hosts = File.read(HOSTS_FILE)
-      return if hosts.include?(domain)
-
-      if Process.uid.zero?
-        File.open(HOSTS_FILE, 'a') { |f| f.puts entry }
-      else
-        system(%(echo "#{entry}" | sudo tee -a #{HOSTS_FILE} > /dev/null))
-      end
-
-      system('dscacheutil -flushcache; sudo killall -HUP mDNSResponder')
-    end
-
-    def secure_app(domain, _folder, port)
-      ensure_certs_dir!
-
-      cert_path = File.join(Stable::Paths.certs_dir, "#{domain}.pem")
-      key_path  = File.join(Stable::Paths.certs_dir, "#{domain}-key.pem")
-
-      # Generate certificates if missing
-      if system('which mkcert > /dev/null')
-        unless File.exist?(cert_path) && File.exist?(key_path)
-          system("mkcert -cert-file #{cert_path} -key-file #{key_path} #{domain}")
-        end
-      else
-        puts 'mkcert not found. Please install mkcert.'
-        return
-      end
-
-      # Auto-add Caddy block if not already in Caddyfile
-      add_caddy_block(domain, cert_path, key_path, port)
-      caddy_reload
-    end
-
-    def add_caddy_block(domain, cert, key, port)
-      caddyfile = Stable::Paths.caddyfile
-      FileUtils.touch(caddyfile) unless File.exist?(caddyfile)
-      content = File.read(caddyfile)
-
-      return if content.include?(domain) # don't duplicate
-
-      block = <<~CADDY
-
-        https://#{domain} {
-            reverse_proxy 127.0.0.1:#{port}
-            tls #{cert} #{key}
-        }
-      CADDY
-
-      File.write(caddyfile, content + block)
-      system("caddy fmt --overwrite #{caddyfile}")
-    end
-
-    # Remove Caddyfile entry for the domain
-    def remove_caddy_entry(domain)
-      return unless File.exist?(Stable::Paths.caddyfile)
-
-      content = File.read(Stable::Paths.caddyfile)
-      # Remove block starting with https://<domain> { ... }
-      regex = %r{
-        https://#{Regexp.escape(domain)}\s*\{
-        .*?
-        \}
-      }mx
-
-      new_content = content.gsub(regex, '')
-
-      File.write(Stable::Paths.caddyfile, new_content)
-    end
-
-    def ensure_dependencies!
-      unless system('which brew > /dev/null')
-        puts 'Homebrew is required. Install it first: https://brew.sh'
-        exit 1
-      end
-
-      # --- Install Caddy ---
-      unless system('which caddy > /dev/null')
-        puts 'Installing Caddy...'
-        system('brew install caddy')
-      end
-
-      # --- Install mkcert ---
-      unless system('which mkcert > /dev/null')
-        puts 'Installing mkcert...'
-        system('brew install mkcert nss')
-        system('mkcert -install')
-      end
-
-      # --- Install PostgreSQL ---
-      unless system('which psql > /dev/null')
-        puts 'Installing PostgreSQL...'
-        system('brew install postgresql')
-        system('brew services start postgresql')
-      end
-
-      # --- Install MySQL ---
-      unless system('which mysql > /dev/null')
-        puts 'Installing MySQL...'
-        system('brew install mysql')
-        system('brew services start mysql')
-      end
-
-      puts '✅ All dependencies are installed and running.'
-    end
-
-
-    def ensure_caddy_running!
-      api_port = 2019
-
-      # Check if Caddy API is reachable
-      require 'socket'
-      begin
-        TCPSocket.new('127.0.0.1', api_port).close
-        puts 'Caddy already running.'
-      rescue Errno::ECONNREFUSED
-        puts 'Starting Caddy in background...'
-        system("caddy run --config #{Stable::Paths.caddyfile} --adapter caddyfile --watch --resume &")
-        sleep 3
-      end
-    end
-
     def next_free_port
-      used_ports = Registry.apps.map { |a| a[:port] }
+      used_ports = Services::AppRegistry.all.map { |a| a[:port] }
       port = 3000
       port += 1 while used_ports.include?(port) || port_in_use?(port)
       port
@@ -625,62 +232,7 @@ module Stable
       end
     end
 
-    def ensure_rvm!
-      return if system('which rvm > /dev/null')
-
-      puts 'RVM not found. Installing RVM...'
-
-      install_cmd = <<~CMD
-        curl -sSL https://get.rvm.io | bash -s stable
-      CMD
-
-      abort 'RVM installation failed' unless system(install_cmd)
-
-      # Load RVM into current process
-      rvm_script = File.expand_path('~/.rvm/scripts/rvm')
-      abort 'RVM installed but could not be loaded' unless File.exist?(rvm_script)
-
-      ENV['PATH'] = "#{File.expand_path('~/.rvm/bin')}:#{ENV['PATH']}"
-
-      system(%(bash -lc "source #{rvm_script} && rvm --version")) ||
-        abort('RVM installed but not functional')
-    end
-
-    def ensure_ruby_installed!(version)
-      return if system("rvm list strings | grep ruby-#{version} > /dev/null")
-
-      puts "Installing Ruby #{version}..."
-      system("rvm install #{version}") || abort("Failed to install Ruby #{version}")
-    end
-
-    def detect_ruby_version(path)
-      rv = File.join(path, '.ruby-version')
-      return File.read(rv).strip if File.exist?(rv)
-
-      gemfile = File.join(path, 'Gemfile')
-      if File.exist?(gemfile)
-        ruby_line = File.read(gemfile)[/^ruby ['"](.+?)['"]/, 1]
-        return ruby_line if ruby_line
-      end
-
-      nil
-    end
-
-    def rvm_available?
-      system("bash -lc 'command -v rvm > /dev/null'")
-    end
-
-    def rbenv_available?
-      system('command -v rbenv > /dev/null')
-    end
-
-    def ensure_rvm_ruby!(version)
-      system("bash -lc 'rvm list strings | grep -q #{version} || rvm install #{version}'")
-    end
-
-    def ensure_rbenv_ruby!(version)
-      system("rbenv versions | grep -q #{version} || rbenv install #{version}")
-    end
+    # RVM/ruby helpers moved to Services::Ruby
 
     def app_running?(app)
       return false unless app && app[:port]
@@ -700,59 +252,15 @@ module Stable
     end
 
     def dedupe_registry!
-      apps = Registry.apps
-      apps.uniq! { |a| a[:name] }
-      Registry.save(apps)
+      Services::AppRegistry.dedupe
     end
 
     def gemset_for(app)
-      gemset_file = File.join(app[:path], '.ruby-gemset')
-      return File.read(gemset_file).strip if File.exist?(gemset_file)
-
-      nil
+      Stable::Services::Ruby.gemset_for(app)
     end
 
     def rvm_exec(app, ruby)
-      gemset = gemset_for(app)
-
-      if gemset
-        "rvm #{ruby}@#{gemset} do"
-      else
-        "rvm #{ruby} do"
-      end
-    end
-
-    def create_mysql_db(db_name)
-      socket = %w[
-        /opt/homebrew/var/mysql/mysql.sock
-        /tmp/mysql.sock
-      ].find { |path| File.exist?(path) } || abort('MySQL socket not found')
-
-      print 'Enter MySQL root username (default: root): '
-      root_user = $stdin.gets.chomp
-      root_user = 'root' if root_user.empty?
-
-      print 'Enter MySQL root password (leave blank if none): '
-      root_password = $stdin.noecho(&:gets).chomp
-      puts
-
-      password_arg = root_password.empty? ? '' : "-p#{root_password}"
-
-      sql = <<~SQL
-        CREATE DATABASE IF NOT EXISTS #{db_name};
-        FLUSH PRIVILEGES;
-      SQL
-
-      require 'tempfile'
-      Tempfile.create(['db_setup', '.sql']) do |file|
-        file.write(sql)
-        file.flush
-        system("mysql --protocol=SOCKET --socket=#{socket} -u #{root_user} #{password_arg} < #{file.path}") or
-          abort("Failed to create MySQL DB '#{db_name}'")
-      end
-
-      puts "✅ MySQL database '#{db_name}' created/ready"
-      { user: root_user, password: root_password }
+      Stable::Services::Ruby.rvm_exec(app, ruby)
     end
   end
 end

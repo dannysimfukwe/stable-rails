@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name          = 'stable-cli-rails'
-  spec.version       = '0.6.9'
+  spec.version       = '0.7.10'
   spec.authors       = ['Danny Simfukwe']
   spec.email         = ['dannysimfukwe@gmail.com']
 
@@ -16,6 +16,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
   spec.required_ruby_version = '>= 3.2.4'
 
-  spec.add_dependency 'fileutils'
-  spec.add_dependency 'thor'
+  spec.add_dependency 'thor', '~> 1.2.2'
+  spec.add_development_dependency 'rake', '~> 13.0'
+  spec.add_development_dependency 'rspec', '~> 3.0'
 end

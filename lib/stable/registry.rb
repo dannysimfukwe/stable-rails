@@ -6,7 +6,7 @@ require 'fileutils'
 module Stable
   class Registry
     def self.file_path
-      File.join(Stable.root, 'apps.yml')
+      Stable::Paths.apps_file
     end
 
     def self.save(apps)
@@ -15,7 +15,17 @@ module Stable
     end
 
     def self.apps
-      File.exist?(file_path) ? YAML.load_file(file_path) : []
+      return [] unless File.exist?(file_path)
+
+      data = YAML.load_file(file_path) || []
+      data.map do |entry|
+        next entry unless entry.is_a?(Hash)
+
+        entry.each_with_object({}) do |(k, v), memo|
+          key = k.is_a?(String) ? k.to_sym : k
+          memo[key] = v
+        end
+      end
     end
   end
 end

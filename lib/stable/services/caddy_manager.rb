@@ -143,6 +143,7 @@ module Stable
           begin
             FileUtils.chown_R(Etc.getlogin, nil, certs_dir)
           rescue StandardError
+            nil
           end
 
           Dir.glob("#{certs_dir}/*.pem").each do |pem|

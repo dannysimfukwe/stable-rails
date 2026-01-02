@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Stable
   module Validators
     class AppName
@@ -12,8 +14,8 @@ module Stable
             Invalid app name: "#{name}"
 
             Use only:
-              - lowercase letters (a–z)
-              - numbers (0–9)
+              - lowercase letters (a-z)
+              - numbers (0-9)
               - hyphens (-)
 
             Rules:
@@ -33,7 +35,7 @@ module Stable
         name
           .downcase
           .strip
-          .gsub(/\s+/, '-')      # spaces → hyphens
+          .gsub(/\s+/, '-') # spaces → hyphens
           .gsub(/[^a-z0-9-]/, '') # drop invalid chars
           .gsub(/-+/, '-')        # collapse hyphens
           .gsub(/\A-|-+\z/, '')   # trim hyphens

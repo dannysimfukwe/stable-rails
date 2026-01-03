@@ -97,6 +97,15 @@ module Stable
           "rvm #{ruby} do"
         end
       end
+
+      def self.clean_rvm_exec(ruby, gemset, cmd)
+        <<~CMD
+          bash -lc '
+            source #{rvm_script};
+            rvm #{ruby}@#{gemset} --create do #{cmd}
+          '
+        CMD
+      end
     end
   end
 end

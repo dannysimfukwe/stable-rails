@@ -29,6 +29,7 @@ module Stable
     method_option :db, type: :string, desc: 'Database name to create and integrate'
     method_option :postgres, type: :boolean, default: false, desc: 'Use Postgres for the database'
     method_option :mysql, type: :boolean, default: false, desc: 'Use MySQL for the database'
+    method_option :full, type: :boolean, default: false, desc: 'Setup full Rails app common generators'
     def new(name, ruby: RUBY_VERSION, rails: nil, port: nil)
       safe_name = Validators::AppName.call!(name)
       Commands::New.new(safe_name, options).call

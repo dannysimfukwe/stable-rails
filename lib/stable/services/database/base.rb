@@ -4,9 +4,10 @@ module Stable
   module Services
     module Database
       class Base
-        def initialize(app_name:, app_path:)
+        def initialize(app_name:, app_path:, ruby:)
           @app_name = app_name
           @app_path = app_path
+          @ruby     = ruby
           @database_name = @app_name
                            .downcase
                            .gsub(/[^a-z0-9_]/, '_')
@@ -16,7 +17,7 @@ module Stable
 
         def prepare
           System::Shell.run(
-            "cd #{@app_path} && bundle exec rails db:prepare"
+            bash_rvm('bundle exec rails db:prepare')
           )
         end
 
@@ -40,6 +41,14 @@ module Stable
 
         def base_config(_creds)
           raise NotImplementedError
+        end
+
+        def bash_rvm(cmd)
+          raise 'ruby not set' unless @ruby
+          raise 'app_name not set' unless @app_name
+          raise 'app_path not set' unless @app_path
+
+          "bash -lc 'cd #{@app_path} && source #{Ruby.rvm_script} && rvm #{@ruby}@#{@app_name} do #{cmd}'"
         end
       end
     end

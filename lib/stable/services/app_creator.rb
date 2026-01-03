@@ -15,55 +15,54 @@ module Stable
         domain = "#{@name}.test"
 
         # --- Register app in registry ---
-        Services::AppRegistry.add(name: @name, path: app_path, domain: domain, port: port, ruby: ruby, started_at: nil,
-                                  pid: nil)
+        Services::AppRegistry.add(
+          name: @name, path: app_path, domain: domain, port: port,
+          ruby: ruby, started_at: nil, pid: nil
+        )
 
         abort "Folder already exists: #{app_path}" if File.exist?(app_path)
 
-        # --- Ensure Ruby + gemset ---
+        # --- Ensure Ruby version & RVM ---
         Ruby.ensure_version(ruby)
         Ruby.ensure_rvm!
-        System::Shell.run("bash -lc 'source #{Ruby.rvm_script} && rvm #{ruby}@#{@name} --create do true'")
+
+        # --- Create gemset ---
+        System::Shell.run("bash -lc 'source #{Ruby.rvm_script} && rvm #{ruby} do rvm gemset create #{@name} || true'")
 
         rvm_cmd = Ruby.rvm_prefix(ruby, @name)
 
-        # --- Install Rails into gemset if missing ---
-        rails_version = @options[:rails]
-        rails_check_cmd = if rails_version
-                            "#{rvm_cmd} gem list -i rails -v #{rails_version}"
-                          else
-                            "#{rvm_cmd} gem list -i rails"
-                          end
+        # --- Install Bundler ---
+        System::Shell.run("bash -lc '#{rvm_cmd} gem install bundler --no-document'")
 
+        # --- Install Rails if missing ---
+        rails_version = @options[:rails]
+        rails_check_cmd = rails_version ? "#{rvm_cmd} gem list -i rails -v #{rails_version}" : "#{rvm_cmd} gem list -i rails"
         unless system("bash -lc '#{rails_check_cmd}'")
-          puts "Installing Rails #{rails_version || 'latest'} in gemset..."
+          puts "Installing Rails #{rails_version || 'latest'}..."
           install_cmd = rails_version ? "#{rvm_cmd} gem install rails -v #{rails_version}" : "#{rvm_cmd} gem install rails"
-          system("bash -lc '#{install_cmd}'") or abort('Failed to install Rails')
+          system("bash -lc '#{install_cmd}'") or abort("Failed to install Rails #{rails_version || ''}")
         end
 
         # --- Create Rails app ---
         puts "Creating Rails app #{@name} (Ruby #{ruby})..."
-        System::Shell.run("bash -lc '#{rvm_cmd} rails new #{app_path}'")
+        System::Shell.run("bash -lc '#{rvm_cmd} rails new #{app_path} \
+                              --skip-importmap  \
+                              --skip-hotwire  \
+                              --skip-javascript  \
+                              --skip-solid'")
 
-        # --- Write ruby version/gemset and bundle install inside gemset ---
+        # --- Write ruby version/gemset ---
         Dir.chdir(app_path) do
           File.write('.ruby-version', "#{ruby}\n")
           File.write('.ruby-gemset', "#{@name}\n")
-
-          puts 'Running bundle install...'
-          System::Shell.run("bash -lc '#{rvm_cmd} bundle install --jobs=4 --retry=3'")
         end
 
         # --- Database integration ---
         if @options[:db]
-          adapter = if @options[:mysql]
-                      :mysql
-                    else
-                      :postgresql
-                    end
-
+          adapter = @options[:mysql] ? :mysql : :postgresql
           gem_name = adapter == :postgresql ? 'pg' : 'mysql2'
           gemfile_path = File.join(app_path, 'Gemfile')
+
           unless File.read(gemfile_path).include?(gem_name)
             File.open(gemfile_path, 'a') do |f|
               f.puts "\n# Added by Stable CLI"
@@ -72,17 +71,85 @@ module Stable
             puts "✅ Added '#{gem_name}' gem to Gemfile"
           end
 
-          # ensure gem is installed inside gemset
-          System::Shell.run("bash -lc 'cd #{app_path} && #{rvm_cmd} bundle install --jobs=4 --retry=3'")
+          # Use correct Ruby/gemset for bundle install
+          System::Shell.run(rvm_run('bundle install --jobs=4 --retry=3', chdir: app_path))
 
-          # run adapter setup which will write database.yml and prepare
           db_adapter = adapter == :mysql ? Database::MySQL : Database::Postgres
-          db_adapter.new(app_name: @name, app_path: app_path).setup
+          db_adapter.new(app_name: @name, app_path: app_path, ruby: ruby).setup
         end
 
-        # --- Refresh bundle and prepare DB (idempotent) ---
-        System::Shell.run("bash -lc 'cd #{app_path} && #{rvm_cmd} bundle check || #{rvm_cmd} bundle install'")
-        System::Shell.run("bash -lc 'cd #{app_path} && #{rvm_cmd} bundle exec rails db:prepare'")
+        # --- Run bundle & DB prepare ---
+        System::Shell.run(rvm_run('bundle install --jobs=4 --retry=3', chdir: app_path))
+        System::Shell.run(rvm_run('bundle exec rails db:prepare', chdir: app_path))
+
+        rails_version = `bash -lc 'cd #{app_path} && #{rvm_cmd} bundle exec rails runner "puts Rails.version"'`.strip.to_f
+
+        begin
+          rails_ver = Gem::Version.new(rails_version)
+        rescue ArgumentError
+          rails_ver = Gem::Version.new('0.0.0')
+        end
+
+        # only if Rails >= 7
+        if rails_ver >= Gem::Version.new('7.0.0')
+          # Gems to re-add
+          optional_gems = {
+            'importmap-rails' => nil,
+            'turbo-rails' => nil,
+            'stimulus-rails' => nil,
+            'solid_cache' => nil,
+            'solid_queue' => nil,
+            'solid_cable' => nil
+          }
+
+          gemfile = File.join(app_path, 'Gemfile')
+
+          # Add gems if not already present
+          optional_gems.each do |gem_name, version|
+            next if File.read(gemfile).match?(/^gem ['"]#{gem_name}['"]/)
+
+            File.open(gemfile, 'a') do |f|
+              f.puts version ? "gem '#{gem_name}', '#{version}'" : "gem '#{gem_name}'"
+            end
+          end
+
+          # Install all new gems
+          System::Shell.run(rvm_run('bundle install', chdir: app_path))
+
+          # Run generators for installed gems
+          generators = [
+            'importmap:install',
+            'turbo:install stimulus:install',
+            'solid_cache:install solid_queue:install solid_cable:install'
+          ]
+
+          generators.each do |cmd|
+            System::Shell.run(rvm_run("bundle exec rails #{cmd}", chdir: app_path))
+          end
+        end
+
+        # --- Add allowed host for Rails < 7.2 ---
+        if @options[:rails] && @options[:rails].to_f < 7.2
+          env_file = File.join(app_path, 'config/environments/development.rb')
+
+          if File.exist?(env_file)
+            content = File.read(env_file)
+
+            # Append host config inside the Rails.application.configure block
+            updated_content = content.gsub(/Rails\.application\.configure do(.*?)end/mm) do |_match|
+              inner = Regexp.last_match(1)
+              # Prevent duplicate entries
+              unless inner.include?(domain)
+                inner += "  # allow local .test host for this app\n  config.hosts << '#{domain}'\n"
+              end
+              "Rails.application.configure do#{inner}end"
+            end
+
+            File.write(env_file, updated_content)
+          else
+            warn "Development environment file not found: #{env_file}"
+          end
+        end
 
         # --- Hosts, certs, caddy ---
         Services::HostsManager.add(domain)
@@ -90,49 +157,30 @@ module Stable
         Services::CaddyManager.ensure_running!
         Services::CaddyManager.reload
 
-        # --- Start the app ---
+        # --- Start Rails server ---
         puts "Starting Rails server for #{@name} on port #{port}..."
         log_file = File.join(app_path, 'log', 'stable.log')
         FileUtils.mkdir_p(File.dirname(log_file))
 
         abort "Port #{port} is already in use. Choose another port." if port_in_use?(port)
 
-        pid = spawn('bash', '-lc', "cd \"#{app_path}\" && #{rvm_cmd} bundle exec rails s -p #{port} -b 127.0.0.1",
-                    out: log_file, err: log_file)
+        pid = spawn(
+          'bash', '-lc',
+          "cd \"#{app_path}\" && #{rvm_cmd} bundle exec rails s -p #{port} -b 127.0.0.1",
+          out: log_file, err: log_file
+        )
         Process.detach(pid)
-
         AppRegistry.update(@name, started_at: Time.now.to_i, pid: pid)
 
         sleep 1.5
         wait_for_port(port)
-        prefix = @options[:skip_ssl] ? 'http' : 'https'
-        display_domain = if @options[:skip_ssl]
-                           "#{domain}:#{port}"
-                         else
-                           domain
-                         end
 
+        prefix = @options[:skip_ssl] ? 'http' : 'https'
+        display_domain = @options[:skip_ssl] ? "#{domain}:#{port}" : domain
         puts "✔ #{@name} running at #{prefix}://#{display_domain}"
       end
 
       private
-
-      def create_rails_app
-        System::Shell.run("rails new #{@name}")
-      end
-
-      def setup_database
-        return unless @options[:mysql] || @options[:postgres]
-
-        adapter =
-          if @options[:mysql]
-            Database::MySQL
-          else
-            Database::Postgres
-          end
-
-        adapter.new(@name).setup
-      end
 
       def next_free_port
         used_ports = Services::AppRegistry.all.map { |a| a[:port] }
@@ -157,6 +205,13 @@ module Stable
 
           sleep 0.5
         end
+      end
+
+      def rvm_run(cmd, chdir: nil, ruby: nil)
+        ruby ||= @options[:ruby] || RUBY_VERSION
+        gemset = @name
+        cd = chdir ? "cd #{chdir} && " : ''
+        "bash -lc '#{cd}source #{Dir.home}/.rvm/scripts/rvm && rvm #{ruby}@#{gemset} do #{cmd}'"
       end
     end
   end

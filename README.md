@@ -50,7 +50,7 @@ Lists all registered apps and their domains.
 
 ```bash
 # Create a new Rails app with options
-stable new myapp [--ruby 3.4.4] [--rails 8.1.1] [--skip-ssl] [--db my_db --mysql] [--db my_db --postgres]
+stable new myapp [--ruby 3.4.4] [--rails 8.1.1] [--skip-ssl] [--db --mysql] [--db --postgres]
 
 # Create a new Rails app with default sqlite
 stable new myapp
@@ -64,10 +64,10 @@ You can create Rails apps with integrated database support using the `--mysql` o
 
 ```bash
 # Create a new Rails app with PostgreSQL
-stable new myapp --db my_db --postgres
+stable new myapp --db --postgres
 
 # Create a new Rails app with MySQL
-stable new myapp --db my_db --mysql
+stable new myapp --db --mysql
 ```
 
 - The CLI will prompt for the database root username and password during setup.  

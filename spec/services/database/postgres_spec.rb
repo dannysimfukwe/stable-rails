@@ -8,7 +8,7 @@ RSpec.describe Stable::Services::Database::Postgres do
   before { FileUtils.mkdir_p(app_path) }
 
   it 'runs createdb and prepares the database' do
-    db = described_class.new(app_name: 'pgdb', app_path: app_path)
+    db = described_class.new(app_name: 'pgdb', app_path: app_path, ruby: '3.0.0')
 
     allow(Stable::System::Shell).to receive(:run).and_return(true)
 
@@ -18,7 +18,7 @@ RSpec.describe Stable::Services::Database::Postgres do
   end
 
   it 'raises when createdb fails' do
-    db = described_class.new(app_name: 'pgfail', app_path: app_path)
+    db = described_class.new(app_name: 'pgfail', app_path: app_path, ruby: '3.0.0')
     allow(Stable::System::Shell).to receive(:run).with('createdb pgfail').and_raise('Command failed')
 
     expect { db.setup }.to raise_error(RuntimeError)

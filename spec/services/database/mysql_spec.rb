@@ -8,7 +8,7 @@ RSpec.describe Stable::Services::Database::MySQL do
   before { FileUtils.mkdir_p(File.join(app_path, 'config')) }
 
   it 'creates database, writes database.yml and prepares' do
-    db = described_class.new(app_name: 'mysqldb', app_path: app_path)
+    db = described_class.new(app_name: 'mysqldb', app_path: app_path, ruby: '3.0.0')
 
     allow(Stable::Utils::Prompts).to receive(:mysql_root_credentials).and_return(user: 'root', password: '')
     allow(Stable::System::Shell).to receive(:run).and_return(true)
@@ -21,7 +21,7 @@ RSpec.describe Stable::Services::Database::MySQL do
   end
 
   it 'propagates when create_database fails' do
-    db = described_class.new(app_name: 'mysqlfail', app_path: app_path)
+    db = described_class.new(app_name: 'mysqlfail', app_path: app_path, ruby: '3.0.0')
     allow(Stable::Utils::Prompts).to receive(:mysql_root_credentials).and_return(user: 'root', password: '')
     allow(Stable::System::Shell).to receive(:run).and_raise('mysql failed')
 

@@ -3,7 +3,11 @@
 module Stable
   module Paths
     def self.root
-      File.expand_path('~/StableCaddy')
+      if ENV['STABLE_TEST_ROOT']
+        ENV['STABLE_TEST_ROOT']
+      else
+        File.expand_path('~/StableCaddy')
+      end
     end
 
     def self.caddy_dir
@@ -20,6 +24,14 @@ module Stable
 
     def self.apps_file
       File.join(root, 'apps.yml')
+    end
+
+    def self.projects_dir
+      File.join(root, 'projects')
+    end
+
+    def self.app_config_file(app_name)
+      File.join(projects_dir, app_name, "#{app_name}.yml")
     end
   end
 end

@@ -25,4 +25,15 @@ RSpec.describe Stable::Services::AppRegistry do
     expect(app[:port]).to be_a(Integer)
     expect(described_class.find('bar')[:name]).to eq('bar')
   end
+
+  it 'overwrites existing app when adding with same name' do
+    app1 = { name: 'baz', path: '/tmp/baz1', domain: 'baz.test', port: 3001 }
+    app2 = { name: 'baz', path: '/tmp/baz2', domain: 'baz.test', port: 3002 }
+
+    described_class.add(app1)
+    expect(described_class.find('baz')[:path]).to eq('/tmp/baz1')
+
+    described_class.add(app2)
+    expect(described_class.find('baz')[:path]).to eq('/tmp/baz2')
+  end
 end

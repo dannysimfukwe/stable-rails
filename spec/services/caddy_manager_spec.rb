@@ -11,7 +11,7 @@ RSpec.describe Stable::Services::CaddyManager do
 
     # create an app entry and certs
     app = { name: 'cadtest', path: '/tmp/cadtest', domain: 'cadtest.test', port: 3600 }
-    Stable::Registry.save([app])
+    Stable::Registry.save_app_config('cadtest', app)
 
     FileUtils.mkdir_p(certs_dir)
     cert = File.join(certs_dir, "#{app[:domain]}.pem")

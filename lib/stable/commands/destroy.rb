@@ -65,6 +65,10 @@ module Stable
       end
 
       def cleanup_rvm_gemset(app)
+        # Only clean up RVM gemsets on Unix-like systems (macOS/Linux)
+        # Windows uses different Ruby version managers
+        return unless Stable::Utils::Platform.unix?
+
         ruby_version = app[:ruby]
         # Handle different ruby version formats (e.g., "3.4.7", "ruby-3.4.7")
         clean_ruby_version = ruby_version.to_s.sub(/^ruby-/, '')

@@ -179,7 +179,7 @@ This command requires confirmation - you must type the exact app name to proceed
 - Remove the app from registry
 - Remove `/etc/hosts` entry
 - Remove the Caddy reverse proxy block
-- **Clean up RVM gemset** (e.g., `3.4.7@appname`)
+- **Clean up RVM gemset** (e.g., `3.4.7@appname`) *on macOS/Linux*
 - **Delete the entire project directory and all files**
 - Reload Caddy
 

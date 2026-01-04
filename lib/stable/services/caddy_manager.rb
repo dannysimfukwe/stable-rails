@@ -16,7 +16,7 @@ module Stable
           content = remove_domain_block(content, domain)
 
           atomic_write(caddyfile, content)
-          system("caddy fmt --overwrite #{caddyfile}")
+          system("caddy fmt --overwrite #{caddyfile}") unless ENV['STABLE_TEST_MODE']
 
           reload_if_running
         end
@@ -38,12 +38,14 @@ module Stable
           content << build_block(domain, port, skip_ssl: skip_ssl)
 
           atomic_write(caddyfile, content)
-          system("caddy fmt --overwrite #{caddyfile}")
+          system("caddy fmt --overwrite #{caddyfile}") unless ENV['STABLE_TEST_MODE']
 
           ensure_running!
         end
 
         def reload
+          return if ENV['STABLE_TEST_MODE']
+
           if system('which caddy > /dev/null')
             pid = Process.spawn("caddy reload --config #{caddyfile}")
             Process.detach(pid.to_i)
@@ -53,6 +55,8 @@ module Stable
         end
 
         def ensure_running!
+          return if ENV['STABLE_TEST_MODE']
+
           if running?
             reload
           else
@@ -80,6 +84,8 @@ module Stable
           key_path  = File.join(Stable::Paths.certs_dir, "#{domain}-key.pem")
 
           return if valid_pem?(cert_path) && valid_pem?(key_path)
+
+          return if ENV['STABLE_TEST_MODE'] # Skip cert generation in tests
 
           raise 'mkcert not installed' unless system('which mkcert > /dev/null')
 

@@ -242,13 +242,36 @@ stable doctor
 
 Checks the environment, RVM/Ruby, Caddy, mkcert, and app readiness.
 
-### Upgrade Ruby for an app
+### Change Ruby version for an app
 
 ```bash
-stable upgrade-ruby myapp 3.4.4
+stable upgrade-ruby myapp 3.4.7
 ```
 
-Upgrades the Ruby version for a specific app, updating `.ruby-version` and ensuring gemset compatibility.
+Changes the Ruby version for a specific app (upgrade, downgrade, or switch). Automatically handles gemset cleanup and recreation for clean environment transitions.
+
+#### Cross-Platform Support
+
+- **macOS/Linux**: Full automation with RVM/rbenv gemsets
+- **Windows**: Provides guidance for RubyInstaller and manual bundle install
+
+#### Examples
+
+```bash
+# Upgrade Ruby version
+stable upgrade-ruby myapp 3.4.7
+
+# Downgrade Ruby version
+stable upgrade-ruby myapp 3.3.0
+
+# Patch version switch
+stable upgrade-ruby myapp 3.4.5
+```
+
+**macOS/Linux**: Creates fresh RVM gemsets and installs gems automatically
+**Windows**: Updates `.ruby-version` and provides manual bundle install instructions
+
+The command updates `.ruby-version`, cleans up old gemsets (on Unix), creates fresh environments, and ensures gem compatibility.
 
 ## Testing
 

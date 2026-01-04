@@ -2,11 +2,11 @@ example_id                                     | status | run_time        |
 ---------------------------------------------- | ------ | --------------- |
 ./spec/cli/cli_integration_spec.rb[1:1]        | passed | 0.18859 seconds |
 ./spec/cli/cli_integration_spec.rb[1:2]        | passed | 0.03318 seconds |
-./spec/commands/destroy_spec.rb[1:1]           | passed | 0.0056 seconds  |
-./spec/commands/destroy_spec.rb[1:2:1]         | passed | 0.0013 seconds  |
-./spec/commands/destroy_spec.rb[1:2:2]         | passed | 0.0645 seconds  |
-./spec/commands/destroy_spec.rb[1:2:3]         | passed | 0.06067 seconds |
-./spec/commands/destroy_spec.rb[1:2:4]         | passed | 0.06279 seconds |
+./spec/commands/destroy_spec.rb[1:1]           | passed | 0.00548 seconds |
+./spec/commands/destroy_spec.rb[1:2:1]         | passed | 0.00123 seconds |
+./spec/commands/destroy_spec.rb[1:2:2]         | passed | 0.06878 seconds |
+./spec/commands/destroy_spec.rb[1:2:3]         | passed | 0.06324 seconds |
+./spec/commands/destroy_spec.rb[1:2:4]         | passed | 0.06335 seconds |
 ./spec/commands/doctor_spec.rb[1:1]            | passed | 0.00259 seconds |
 ./spec/commands/list_spec.rb[1:1]              | passed | 0.00042 seconds |
 ./spec/commands/list_spec.rb[1:2]              | passed | 0.05536 seconds |

@@ -2,12 +2,14 @@
 
 Gem::Specification.new do |spec|
   spec.name          = 'stable-cli-rails'
-  spec.version       = '0.7.12'
+  spec.version       = '0.8.0'
   spec.authors       = ['Danny Simfukwe']
   spec.email         = ['dannysimfukwe@gmail.com']
 
   spec.summary       = 'CLI tool to manage local Rails apps with automatic Caddy and HTTPS setup'
-  spec.description   = 'Stable CLI: manage local Rails apps with automatic Caddy, HTTPS, and simple start/stop commands.'
+  spec.description   = 'Stable is a cross-platform CLI tool to manage local Rails applications ' \
+                       'with automatic Caddy setup, local trusted HTTPS certificates, ' \
+                       'and easy start/stop functionality. Supports macOS, Linux, and Windows.'
   spec.homepage      = 'https://github.com/dannysimfukwe/stable-rails'
   spec.license       = 'MIT'
 
@@ -17,7 +19,5 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = '>= 3.2.4'
 
   spec.add_dependency 'thor', '~> 1.2.2'
-  spec.add_development_dependency 'rake', '~> 13.0'
-  spec.add_development_dependency 'rspec', '~> 3.0'
   spec.metadata['rubygems_mfa_required'] = 'true'
 end

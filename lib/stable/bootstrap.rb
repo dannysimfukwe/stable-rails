@@ -3,6 +3,7 @@
 require 'fileutils'
 
 module Stable
+  # Bootstrap utilities for setting up Stable environment
   module Bootstrap
     def self.run!
       FileUtils.mkdir_p(Paths.root)

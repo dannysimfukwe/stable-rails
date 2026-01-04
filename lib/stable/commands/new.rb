@@ -2,6 +2,7 @@
 
 module Stable
   module Commands
+    # New command - creates a new Rails application
     class New
       def initialize(name, options)
         @name = name

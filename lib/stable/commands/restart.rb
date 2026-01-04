@@ -2,6 +2,7 @@
 
 module Stable
   module Commands
+    # Restart command - restarts a Rails application
     class Restart
       def initialize(name)
         @name = name

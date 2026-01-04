@@ -2,6 +2,7 @@
 
 module Stable
   module System
+    # Shell command execution utilities
     class Shell
       def self.run(cmd)
         puts "→ #{cmd}"

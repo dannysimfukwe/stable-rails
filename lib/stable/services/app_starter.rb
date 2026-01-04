@@ -2,6 +2,7 @@
 
 module Stable
   module Services
+    # Service for starting Rails applications
     class AppStarter
       def initialize(name)
         @name = name

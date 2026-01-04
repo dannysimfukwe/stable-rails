@@ -2,6 +2,7 @@
 
 module Stable
   module Commands
+    # List command - displays all registered applications
     class List
       def call
         apps = Services::AppRegistry.all
@@ -34,12 +35,12 @@ module Stable
           end
 
         format(
-          '%-18s %-26s %-8s %-10s %-10s',
-          app[:name],
-          app[:domain],
-          app[:port],
-          app[:ruby],
-          status
+          '%<name>-18s %<domain>-26s %<port>-8s %<ruby>-10s %<status>-10s',
+          name: app[:name],
+          domain: app[:domain],
+          port: app[:port],
+          ruby: app[:ruby],
+          status: status
         )
       end
     end

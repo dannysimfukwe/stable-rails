@@ -4,6 +4,7 @@ require_relative '../utils/platform'
 
 module Stable
   module Services
+    # Service for managing hosts file entries
     class HostsManager
       def self.hosts_file
         Stable::Utils::Platform.hosts_file

@@ -2,6 +2,7 @@
 
 module Stable
   module Commands
+    # Remove command - removes a Rails application
     class Remove
       def initialize(name)
         @name = name

@@ -2,6 +2,7 @@
 
 module Stable
   module Services
+    # Service for creating new Rails applications
     class AppCreator
       def initialize(name, options)
         @name = name
@@ -47,11 +48,9 @@ module Stable
 
         # --- Create Rails app ---
         puts "Creating Rails app #{@name} (Ruby #{ruby})..."
-        System::Shell.run("bash -lc '#{rvm_cmd} rails new #{app_path} \
-                              --skip-importmap  \
-                              --skip-hotwire  \
-                              --skip-javascript  \
-                              --skip-solid'")
+        rails_cmd = "#{rvm_cmd} rails new #{app_path} " \
+                    '--skip-importmap --skip-hotwire --skip-javascript --skip-solid'
+        System::Shell.run("bash -lc '#{rails_cmd}'")
 
         # --- Write ruby version/gemset ---
         Dir.chdir(app_path) do
@@ -84,7 +83,8 @@ module Stable
         System::Shell.run(rvm_run('bundle install --jobs=4 --retry=3', chdir: app_path))
         System::Shell.run(rvm_run('bundle exec rails db:prepare', chdir: app_path))
 
-        rails_version = `bash -lc 'cd #{app_path} && #{rvm_cmd} bundle exec rails runner "puts Rails.version"'`.strip.to_f
+        rails_check = "cd #{app_path} && #{rvm_cmd} bundle exec rails runner \"puts Rails.version\""
+        rails_version = `bash -lc '#{rails_check}'`.strip.to_f
 
         begin
           rails_ver = Gem::Version.new(rails_version)

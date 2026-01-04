@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module Stable
+  # Database management utilities for Rails applications
   class DBManager
     attr_reader :name, :adapter
 

@@ -4,6 +4,7 @@ require 'io/console'
 
 module Stable
   module Utils
+    # User interaction utilities for prompting input
     class Prompts
       def self.mysql_root_credentials
         print 'Enter MySQL root username (default: root): '

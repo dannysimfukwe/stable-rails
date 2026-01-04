@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module Stable
+  # Path utilities for Stable configuration and data directories
   module Paths
     def self.root
       ENV['STABLE_TEST_ROOT'] || File.expand_path('~/StableCaddy')

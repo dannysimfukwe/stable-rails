@@ -3,6 +3,7 @@
 module Stable
   module Services
     module Database
+      # MySQL database management service
       class MySQL < Base
         def setup
           creds = Stable::Utils::Prompts.mysql_root_credentials

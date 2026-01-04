@@ -43,11 +43,7 @@ RSpec.describe Stable::DBManager do
       db = described_class.new('mysqldb', adapter: :mysql)
       allow_any_instance_of(described_class).to receive(:mysql_socket).and_return('/tmp/mysql.sock')
 
-      allow_any_instance_of(Object).to receive(:system) do |_, cmd|
-        if cmd =~ /mysql -u root -e/ # root auth check
-        end
-        true
-      end
+      allow_any_instance_of(Object).to receive(:system).and_return(true)
 
       expect { db.create }.not_to raise_error
     end

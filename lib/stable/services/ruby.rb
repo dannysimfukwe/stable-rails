@@ -2,6 +2,7 @@
 
 module Stable
   module Services
+    # Ruby version management utilities
     module Ruby
       def self.ensure_version(version)
         return if version.nil? || version.to_s.strip.empty?

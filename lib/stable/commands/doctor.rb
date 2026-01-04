@@ -2,6 +2,7 @@
 
 module Stable
   module Commands
+    # Doctor command - checks system health and dependencies
     class Doctor
       def call
         puts 'Running Stable health checks...'

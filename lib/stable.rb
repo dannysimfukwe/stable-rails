@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+# Main Stable CLI module - provides cross-platform Rails application management
 module Stable
   def self.root
     Paths.root

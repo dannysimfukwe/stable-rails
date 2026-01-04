@@ -4,6 +4,7 @@ require_relative 'platform'
 
 module Stable
   module Utils
+    # Cross-platform package manager utilities
     module PackageManager
       class << self
         def install_command(package)
@@ -26,47 +27,37 @@ module Stable
           when :macos
             "brew services start #{service}"
           when :linux
-            if Platform.package_manager == :apt
-              "sudo systemctl start #{service}" if systemctl_available?
-            elsif Platform.package_manager == :yum
-              "sudo systemctl start #{service}" if systemctl_available?
-            end
+            "sudo systemctl start #{service}" if systemctl_available?
           else
             raise "Service management not supported on #{Platform.current} platform"
           end
         end
 
         def available?
-          case Platform.package_manager
-          when :brew
-            system('which brew > /dev/null 2>&1')
-          when :apt
-            system('which apt > /dev/null 2>&1')
-          when :yum
+          pm = Platform.package_manager
+          if pm == :yum
             system('which yum > /dev/null 2>&1') || system('which dnf > /dev/null 2>&1')
-          when :pacman
-            system('which pacman > /dev/null 2>&1')
           else
-            false
+            cmd = package_manager_commands.dig(pm, 0)
+            cmd ? system("#{cmd} > /dev/null 2>&1") : false
           end
         end
 
         def name
-          case Platform.package_manager
-          when :brew
-            'Homebrew'
-          when :apt
-            'APT'
-          when :yum
-            'YUM/DNF'
-          when :pacman
-            'Pacman'
-          else
-            'Unknown'
-          end
+          pm = Platform.package_manager
+          package_manager_commands[pm]&.last || 'Unknown'
         end
 
         private
+
+        def package_manager_commands
+          {
+            brew: ['which brew', 'Homebrew'],
+            apt: ['which apt', 'APT'],
+            yum: ['which yum', 'YUM/DNF'],
+            pacman: ['which pacman', 'Pacman']
+          }
+        end
 
         def systemctl_available?
           system('which systemctl > /dev/null 2>&1')

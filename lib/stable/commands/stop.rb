@@ -2,6 +2,7 @@
 
 module Stable
   module Commands
+    # Stop command - stops a Rails application
     class Stop
       def initialize(name)
         @name = name

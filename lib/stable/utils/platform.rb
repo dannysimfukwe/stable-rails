@@ -2,6 +2,7 @@
 
 module Stable
   module Utils
+    # Platform detection utilities for cross-platform compatibility
     module Platform
       class << self
         def macos?
@@ -30,9 +31,7 @@ module Stable
 
         def package_manager
           return :brew if macos?
-          return :apt if linux? && apt_available?
-          return :yum if linux? && yum_available?
-          return :pacman if linux? && pacman_available?
+          return detect_linux_package_manager if linux?
 
           :unknown
         end
@@ -47,10 +46,18 @@ module Stable
         def home_directory
           return ENV.fetch('USERPROFILE', nil) if windows?
 
-          Dir.home || Dir.home
+          Dir.home
         end
 
         private
+
+        def detect_linux_package_manager
+          return :apt if apt_available?
+          return :yum if yum_available?
+          return :pacman if pacman_available?
+
+          :unknown
+        end
 
         def apt_available?
           system('which apt > /dev/null 2>&1')

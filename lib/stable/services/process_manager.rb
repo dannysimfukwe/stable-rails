@@ -36,20 +36,23 @@ module Stable
 
         Process.detach(pid)
 
-        AppRegistry.update(app[:name], started_at: Time.now.to_i, pid: pid)
+        # Wait a moment for Rails to start, then find the actual Rails PID
+        sleep 2
+        rails_pid = find_rails_pid(app[:port])
 
-        pid
+        AppRegistry.update(app[:name], started_at: Time.now.to_i, pid: rails_pid || pid)
+
+        rails_pid || pid
       end
 
       def self.stop(app)
-        pid = app[:pid]
-        return unless pid
+        return unless app[:port]
 
-        output = `lsof -i tcp:#{app[:port]} -t`.strip
-        if output.empty?
+        pids = Stable::Utils::Platform.find_pids_by_port(app[:port])
+        if pids.empty?
           puts "No app running on port #{app[:port]}"
         else
-          output.split("\n").each { |pid| Process.kill('TERM', pid.to_i) }
+          pids.each { |pid| Process.kill('TERM', pid.to_i) rescue nil }
           puts "Stopped #{app[:name]} on port #{app[:port]}"
         end
 
@@ -90,6 +93,11 @@ module Stable
             AppRegistry.update(app[:name], started_at: nil, pid: nil)
           end
         end
+      end
+
+      def self.find_rails_pid(port)
+        pids = Stable::Utils::Platform.find_pids_by_port(port)
+        pids.first
       end
     end
   end

@@ -25,8 +25,8 @@ module Stable
       end
 
       def ensure_apps_registry
-        path = Stable::Paths.apps_file
-        File.write(path, {}.to_yaml) unless File.exist?(path)
+        path = Stable::Paths.projects_dir
+        FileUtils.mkdir_p(path) unless Dir.exist?(path)
       end
 
       def ensure_caddyfile

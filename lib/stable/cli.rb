@@ -14,7 +14,6 @@ module Stable
       super
       Stable::Bootstrap.run!
       Services::SetupRunner.ensure_dependencies!
-      dedupe_registry!
     end
 
     def self.exit_on_failure?
@@ -157,10 +156,6 @@ module Stable
 
     def port_in_use?(port)
       system("lsof -i tcp:#{port} > /dev/null 2>&1")
-    end
-
-    def dedupe_registry!
-      Services::AppRegistry.dedupe
     end
   end
 end

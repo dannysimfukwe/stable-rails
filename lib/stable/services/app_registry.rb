@@ -42,32 +42,19 @@ module Stable
         end
 
         def add(app)
-          apps = Stable::Registry.apps
-          apps.reject! { |a| a[:name] == app[:name] }
-          apps << app
-          Stable::Registry.save(apps)
-        end
-
-        # Remove duplicate app entries (by name) and persist the canonical list
-        def dedupe
-          apps = Stable::Registry.apps
-          apps.uniq! { |a| a[:name] }
-          Stable::Registry.save(apps)
-          apps
+          Stable::Registry.save_app_config(app[:name], app)
         end
 
         def remove(name)
-          apps = Stable::Registry.apps.reject { |a| a[:name] == name }
-          Stable::Registry.save(apps)
+          Stable::Registry.remove_app_config(name)
         end
 
         def update(name, attrs)
-          apps = Stable::Registry.apps
-          idx = apps.index { |a| a[:name] == name }
-          return unless idx
+          app = find(name)
+          return unless app
 
-          apps[idx] = apps[idx].merge(attrs)
-          Stable::Registry.save(apps)
+          updated_app = app.merge(attrs)
+          Stable::Registry.save_app_config(name, updated_app)
         end
 
         def mark_stopped(name)

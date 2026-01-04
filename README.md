@@ -30,9 +30,10 @@ Initialize Caddy home and required directories:
 stable setup
 ```
 
-This will create:  
-- `~/StableCaddy/` for Caddy configuration.  
-- `~/StableCaddy/certs` for generated certificates.  
+This will create:
+- `~/StableCaddy/` for Caddy configuration.
+- `~/StableCaddy/certs` for generated certificates.
+- `~/StableCaddy/projects` for Rails applications.
 - `~/StableCaddy/Caddyfile` for Caddy configuration.  
 
 ## CLI Commands
@@ -150,10 +151,11 @@ Upgrades the Ruby version for a specific app, updating `.ruby-version` and ensur
 
 ## Paths
 
-- Caddy home: `~/StableCaddy`  
-- Caddyfile: `~/StableCaddy/Caddyfile`  
-- Certificates: `~/StableCaddy/certs`  
-- Registered apps: `~/StableCaddy/apps.yml`  
+- Caddy home: `~/StableCaddy`
+- Caddyfile: `~/StableCaddy/Caddyfile`
+- Certificates: `~/StableCaddy/certs`
+- Projects directory: `~/StableCaddy/projects`
+- App configurations: `~/StableCaddy/projects/{app_name}/{app_name}.yml`  
 
 ## Dependencies
 

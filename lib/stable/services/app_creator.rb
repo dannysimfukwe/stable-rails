@@ -11,16 +11,18 @@ module Stable
       def call
         ruby = @options[:ruby] || RUBY_VERSION
         port = @options[:port] || next_free_port
-        app_path = File.expand_path(@name)
+        app_path = File.join(Stable::Paths.projects_dir, @name)
         domain = "#{@name}.test"
+
+        # --- Check if app already exists ---
+        config_file = Stable::Paths.app_config_file(@name)
+        abort "App '#{@name}' already exists" if File.exist?(config_file)
 
         # --- Register app in registry ---
         Services::AppRegistry.add(
           name: @name, path: app_path, domain: domain, port: port,
           ruby: ruby, started_at: nil, pid: nil
         )
-
-        abort "Folder already exists: #{app_path}" if File.exist?(app_path)
 
         # --- Ensure Ruby version & RVM ---
         Ruby.ensure_version(ruby)

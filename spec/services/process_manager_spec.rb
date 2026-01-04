@@ -7,7 +7,7 @@ RSpec.describe Stable::Services::ProcessManager do
     # create an app and persist
     @app = { name: 'pmtest', path: File.join(Stable::Paths.root, 'pmtest'), domain: 'pmtest.test', port: 3500 }
     FileUtils.mkdir_p(@app[:path])
-    Stable::Registry.save([@app])
+    Stable::Registry.save_app_config('pmtest', @app)
   end
 
   it 'starts a process and updates registry' do

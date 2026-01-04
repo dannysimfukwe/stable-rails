@@ -36,7 +36,7 @@ module Stable
       end
 
       def check_certs_dir
-        path = File.expand_path('~/StableCaddy/certs')
+        path = Stable::Paths.certs_dir
         ok = Dir.exist?(path)
         {
           name: 'Certificates directory',
@@ -46,12 +46,12 @@ module Stable
       end
 
       def check_apps_registry
-        path = File.expand_path('~/StableCaddy/apps.yml')
-        ok = File.exist?(path)
+        path = Stable::Paths.projects_dir
+        ok = Dir.exist?(path)
         {
-          name: 'Apps registry',
+          name: 'Projects directory',
           ok: ok,
-          message: ok ? nil : 'Missing apps registry. Run `stable setup`'
+          message: ok ? nil : 'Missing projects directory. Run `stable setup`'
         }
       end
     end

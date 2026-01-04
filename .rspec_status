@@ -3,8 +3,8 @@ example_id                                     | status | run_time        |
 ./spec/cli/cli_integration_spec.rb[1:1]        | passed | 0.21354 seconds |
 ./spec/cli/cli_integration_spec.rb[1:2]        | passed | 0.03635 seconds |
 ./spec/commands/doctor_spec.rb[1:1]            | passed | 0.00242 seconds |
-./spec/commands/list_spec.rb[1:1]              | passed | 0.00766 seconds |
-./spec/commands/list_spec.rb[1:2]              | passed | 0.00206 seconds |
+./spec/commands/list_spec.rb[1:1]              | passed | 0.0067 seconds  |
+./spec/commands/list_spec.rb[1:2]              | passed | 0.04959 seconds |
 ./spec/commands/new_spec.rb[1:1]               | passed | 0.00048 seconds |
 ./spec/commands/remove_spec.rb[1:1]            | passed | 0.00144 seconds |
 ./spec/commands/remove_spec.rb[1:2]            | passed | 0.00067 seconds |

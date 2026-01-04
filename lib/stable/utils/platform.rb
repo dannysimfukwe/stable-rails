@@ -49,6 +49,35 @@ module Stable
           Dir.home
         end
 
+        def port_in_use?(port)
+          case current
+          when :macos, :linux
+            # Use lsof on Unix-like systems
+            system("lsof -i tcp:#{port} -sTCP:LISTEN > /dev/null 2>&1")
+          when :windows
+            # Use netstat on Windows
+            system("netstat -an | findstr :#{port} > nul 2>&1")
+          else
+            false
+          end
+        end
+
+        def find_pids_by_port(port)
+          case current
+          when :macos, :linux
+            # Use lsof to find PIDs listening on the port
+            output = `lsof -i tcp:#{port} -sTCP:LISTEN -t 2>/dev/null`.strip
+            return [] if output.empty?
+            output.split("\n").map(&:to_i)
+          when :windows
+            # On Windows, this is more complex. For now, return empty array
+            # Could potentially parse netstat output in the future
+            []
+          else
+            []
+          end
+        end
+
         private
 
         def detect_linux_package_manager

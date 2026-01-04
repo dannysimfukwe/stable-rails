@@ -1,13 +1,12 @@
 # frozen_string_literal: true
 
+require_relative '../utils/platform'
+
 module Stable
   module Commands
     # List command - displays all registered applications
     class List
     def call
-      # Validate and clean up stale app statuses
-      Services::ProcessManager.validate_app_statuses
-
       apps = Services::AppRegistry.all
 
       if apps.empty?
@@ -18,34 +17,36 @@ module Stable
       print_header
 
       apps.each do |app|
-        puts format_row(app)
+        # Determine status based on whether the app is actually running (port check)
+        status = app_running?(app) ? 'running' : 'stopped'
+        puts format_row(app, status)
       end
     end
 
-      private
+    private
 
-      def print_header
-        puts 'APP                DOMAIN                     PORT     RUBY       STATUS    '
-        puts '-' * 78
-      end
+    def app_running?(app)
+      return false unless app && app[:port]
 
-      def format_row(app)
-        status =
-          if app[:started_at]
-            'running'
-          else
-            'stopped'
-          end
+      # Check if something is listening on the app's port (cross-platform)
+      Stable::Utils::Platform.port_in_use?(app[:port])
+    end
 
-        format(
-          '%<name>-18s %<domain>-26s %<port>-8s %<ruby>-10s %<status>-10s',
-          name: app[:name],
-          domain: app[:domain],
-          port: app[:port],
-          ruby: app[:ruby],
-          status: status
-        )
-      end
+    def format_row(app, status)
+      format(
+        '%<name>-18s %<domain>-26s %<port>-8s %<ruby>-10s %<status>-10s',
+        name: app[:name],
+        domain: app[:domain],
+        port: app[:port],
+        ruby: app[:ruby],
+        status: status
+      )
+    end
+
+    def print_header
+      puts 'APP                DOMAIN                     PORT     RUBY       STATUS    '
+      puts '-' * 78
+    end
     end
   end
 end

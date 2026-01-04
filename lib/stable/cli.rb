@@ -156,7 +156,7 @@ module Stable
     end
 
     def port_in_use?(port)
-      system("lsof -i tcp:#{port} > /dev/null 2>&1")
+      Stable::Utils::Platform.port_in_use?(port)
     end
   end
 end

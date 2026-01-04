@@ -21,6 +21,14 @@ module Stable
 
         if app_running?(app)
           puts "#{@name} is already running on https://#{app[:domain]} (port #{port})"
+          # Update the registry with the correct PID if it's missing
+          if !app[:pid] || !app[:started_at]
+            rails_pid = find_rails_pid(port)
+            if rails_pid
+              AppRegistry.update(app[:name], started_at: Time.now.to_i, pid: rails_pid)
+              puts "Updated registry with correct PID (#{rails_pid})"
+            end
+          end
           return
         end
 
@@ -51,7 +59,9 @@ module Stable
 
         wait_for_port(port, timeout: 30)
 
-        AppRegistry.update(app[:name], started_at: Time.now.to_i, pid: pid)
+        # Find the actual Rails process PID by checking what's listening on the port
+        rails_pid = find_rails_pid(port)
+        AppRegistry.update(app[:name], started_at: Time.now.to_i, pid: rails_pid)
 
         Stable::Services::CaddyManager.add_app(app[:name], skip_ssl: false)
         Stable::Services::CaddyManager.reload
@@ -69,7 +79,7 @@ module Stable
       end
 
       def port_in_use?(port)
-        system("lsof -i tcp:#{port} > /dev/null 2>&1")
+        Stable::Utils::Platform.port_in_use?(port)
       end
 
       def wait_for_port(port, timeout: 20)
@@ -97,7 +107,12 @@ module Stable
         # Fallback to port checking if no PID info available
         return false unless app[:port]
 
-        system("lsof -i tcp:#{app[:port]} -sTCP:LISTEN > /dev/null 2>&1")
+        Stable::Utils::Platform.port_in_use?(app[:port])
+      end
+
+      def find_rails_pid(port)
+        pids = Stable::Utils::Platform.find_pids_by_port(port)
+        pids.first
       end
     end
   end

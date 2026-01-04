@@ -2,7 +2,9 @@
 
 Stable is a cross-platform CLI tool to manage local Rails applications with automatic Caddy setup, local trusted HTTPS certificates, and easy start/stop functionality. Supports macOS, Linux, and Windows.
 
-![Stable CLI Demo](stable-demo.gif)
+<p align="center">
+  <img src="stable-demo.gif" alt="Stable CLI Demo" width="100%">
+</p>
 
 ## Features
 

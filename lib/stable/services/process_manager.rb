@@ -2,6 +2,7 @@
 
 module Stable
   module Services
+    # Service for managing application processes
     class ProcessManager
       def self.start(target)
         app = target.is_a?(String) ? AppRegistry.fetch(target) : target

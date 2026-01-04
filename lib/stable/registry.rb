@@ -4,19 +4,50 @@ require 'yaml'
 require 'fileutils'
 
 module Stable
+  # Application registry for managing Rails app configurations
   class Registry
     def self.apps
+      apps = []
+
+      # Read legacy apps.yml file for backward compatibility
+      legacy_file = Stable::Paths.apps_file
+      if File.exist?(legacy_file)
+        legacy_apps = load_legacy_apps(legacy_file)
+        apps.concat(legacy_apps)
+      end
+
+      # Read individual app config files from projects directory
       projects_dir = Stable::Paths.projects_dir
-      return [] unless Dir.exist?(projects_dir)
+      if Dir.exist?(projects_dir)
+        Dir.glob(File.join(projects_dir, '*/')).each do |app_dir|
+          app_name = File.basename(app_dir)
+          config_file = Stable::Paths.app_config_file(app_name)
 
-      Dir.glob(File.join(projects_dir, '*/')).map do |app_dir|
-        app_name = File.basename(app_dir)
-        config_file = Stable::Paths.app_config_file(app_name)
+          next unless File.exist?(config_file)
 
-        next unless File.exist?(config_file)
+          # Skip if we already have this app from legacy file
+          next if apps.any? { |app| app[:name] == app_name }
 
-        load_app_config(config_file)
-      end.compact
+          app_config = load_app_config(app_name)
+          apps << app_config if app_config
+        end
+      end
+
+      apps
+    end
+
+    def self.load_legacy_apps(file_path)
+      return [] unless File.exist?(file_path)
+
+      data = YAML.load_file(file_path) || []
+      data.map do |entry|
+        next entry unless entry.is_a?(Hash)
+
+        entry.each_with_object({}) do |(k, v), memo|
+          key = k.is_a?(String) ? k.to_sym : k
+          memo[key] = v
+        end
+      end
     end
 
     def self.save_app_config(app_name, config)
@@ -29,7 +60,7 @@ module Stable
       config_file = Stable::Paths.app_config_file(app_name)
       return nil unless File.exist?(config_file)
 
-      load_app_config(config_file)
+      parse_config_file(config_file)
     end
 
     def self.remove_app_config(app_name)
@@ -37,7 +68,7 @@ module Stable
       FileUtils.rm_f(config_file)
     end
 
-    def self.load_app_config(config_file)
+    def self.parse_config_file(config_file)
       data = YAML.load_file(config_file)
       return nil unless data.is_a?(Hash)
 

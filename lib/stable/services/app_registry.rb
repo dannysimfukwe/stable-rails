@@ -2,6 +2,7 @@
 
 module Stable
   module Services
+    # Application registry management service
     class AppRegistry
       class << self
         def all

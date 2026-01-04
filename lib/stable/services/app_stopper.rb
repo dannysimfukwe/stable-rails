@@ -2,6 +2,7 @@
 
 module Stable
   module Services
+    # Service for stopping Rails applications
     class AppStopper
       def initialize(name)
         @app = AppRegistry.fetch(name)

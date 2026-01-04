@@ -3,6 +3,7 @@
 module Stable
   module Services
     module Database
+      # Base class for database management services
       class Base
         def initialize(app_name:, app_path:, ruby:)
           @app_name = app_name

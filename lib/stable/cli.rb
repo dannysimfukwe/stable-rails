@@ -9,6 +9,7 @@ require_relative 'scanner'
 require_relative 'registry'
 
 module Stable
+  # Main CLI class for the Stable command-line interface
   class CLI < Thor
     def initialize(*)
       super

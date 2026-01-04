@@ -2,6 +2,7 @@
 
 module Stable
   module Services
+    # Service for removing Rails applications
     class AppRemover
       def initialize(name)
         @name = name

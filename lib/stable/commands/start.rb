@@ -2,6 +2,7 @@
 
 module Stable
   module Commands
+    # Start command - starts a Rails application
     class Start
       def initialize(name)
         @name = name

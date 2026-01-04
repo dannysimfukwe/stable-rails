@@ -4,6 +4,7 @@ require_relative '../utils/package_manager'
 
 module Stable
   module Services
+    # Service for setting up the Stable environment and dependencies
     class SetupRunner
       def call
         ensure_directories

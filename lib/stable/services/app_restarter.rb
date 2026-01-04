@@ -2,6 +2,7 @@
 
 module Stable
   module Services
+    # Service for restarting Rails applications
     class AppRestarter
       def initialize(name)
         @name = name

@@ -4,6 +4,7 @@ require_relative '../utils/package_manager'
 
 module Stable
   module Services
+    # Service for checking system dependencies and health
     class DependencyChecker
       def run
         platform = Stable::Utils::Platform.current
@@ -54,35 +55,28 @@ module Stable
       end
 
       def check_ruby_manager
-        # Check for RVM first, then rbenv, then chruby
-        rvm_ok = system('which rvm > /dev/null 2>&1')
-        rbenv_ok = system('which rbenv > /dev/null 2>&1')
-        chruby_ok = system('which chruby > /dev/null 2>&1')
+        managers = [%w[rvm RVM], %w[rbenv rbenv], %w[chruby chruby]]
 
-        if rvm_ok
-          { name: 'RVM', ok: true, message: nil }
-        elsif rbenv_ok
-          { name: 'rbenv', ok: true, message: nil }
-        elsif chruby_ok
-          { name: 'chruby', ok: true, message: nil }
+        manager = managers.find do |cmd, _name|
+          system("which #{cmd} > /dev/null 2>&1")
+        end
+
+        if manager
+          { name: manager[1], ok: true, message: nil }
         else
           { name: 'Ruby version manager', ok: false, message: 'No Ruby version manager found (RVM, rbenv, or chruby)' }
         end
       end
 
       def check_caddy_running
-        # Different ways to check if Caddy is running on different platforms
         platform = Stable::Utils::Platform.current
+        cmd = if platform == :windows
+                'tasklist /FI "IMAGENAME eq caddy.exe" 2>NUL | find /I "caddy.exe" >NUL'
+              else
+                'pgrep caddy > /dev/null 2>&1'
+              end
 
-        ok = case platform
-             when :macos, :linux
-               system('pgrep caddy > /dev/null 2>&1')
-             when :windows
-               system('tasklist /FI "IMAGENAME eq caddy.exe" 2>NUL | find /I "caddy.exe" >NUL')
-             else
-               false
-             end
-
+        ok = system(cmd)
         {
           name: 'Caddy running',
           ok: ok,

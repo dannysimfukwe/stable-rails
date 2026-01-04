@@ -2,6 +2,7 @@
 
 module Stable
   module Validators
+    # Validates and normalizes Rails application names
     class AppName
       VALID_PATTERN = /\A[a-z0-9]+(-[a-z0-9]+)*\z/
       MAX_LENGTH = 63

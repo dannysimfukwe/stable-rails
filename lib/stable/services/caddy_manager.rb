@@ -2,6 +2,7 @@
 
 module Stable
   module Services
+    # Service for managing Caddy web server configuration
     class CaddyManager
       class << self
         def caddyfile

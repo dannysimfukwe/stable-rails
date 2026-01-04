@@ -55,7 +55,31 @@ module Stable
           return unless app
 
           updated_app = app.merge(attrs)
-          Stable::Registry.save_app_config(name, updated_app)
+
+          # Check if this is a legacy app (from apps.yml) or new format app
+          config_file = Stable::Paths.app_config_file(name)
+          if File.exist?(config_file)
+            # New format: update individual config file
+            Stable::Registry.save_app_config(name, updated_app)
+          else
+            # Legacy format: update apps.yml file
+            update_legacy_app(name, updated_app)
+          end
+        end
+
+        def update_legacy_app(name, updated_app)
+          legacy_file = Stable::Paths.apps_file
+          return unless File.exist?(legacy_file)
+
+          data = YAML.load_file(legacy_file) || []
+          idx = data.find_index { |app| app['name'] == name || app[:name] == name }
+
+          if idx
+            # Convert symbols to strings for YAML compatibility
+            legacy_format = updated_app.transform_keys(&:to_s)
+            data[idx] = legacy_format
+            File.write(legacy_file, data.to_yaml)
+          end
         end
 
         def mark_stopped(name)

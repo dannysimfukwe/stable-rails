@@ -4,20 +4,23 @@ module Stable
   module Commands
     # List command - displays all registered applications
     class List
-      def call
-        apps = Services::AppRegistry.all
+    def call
+      # Validate and clean up stale app statuses
+      Services::ProcessManager.validate_app_statuses
 
-        if apps.empty?
-          puts 'No apps registered.'
-          return
-        end
+      apps = Services::AppRegistry.all
 
-        print_header
-
-        apps.each do |app|
-          puts format_row(app)
-        end
+      if apps.empty?
+        puts 'No apps registered.'
+        return
       end
+
+      print_header
+
+      apps.each do |app|
+        puts format_row(app)
+      end
+    end
 
       private
 

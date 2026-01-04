@@ -87,7 +87,15 @@ module Stable
       end
 
       def app_running?(app)
-        return false unless app && app[:port]
+        return false unless app
+
+        # First check if we have PID info and if the process is alive
+        if app[:pid] && app[:started_at]
+          return ProcessManager.pid_alive?(app[:pid])
+        end
+
+        # Fallback to port checking if no PID info available
+        return false unless app[:port]
 
         system("lsof -i tcp:#{app[:port]} -sTCP:LISTEN > /dev/null 2>&1")
       end

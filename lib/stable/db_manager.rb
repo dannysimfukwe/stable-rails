@@ -101,16 +101,30 @@ module Stable
       )) or abort('Failed to repair MySQL root authentication')
     end
 
-    # Detect MySQL socket on macOS / Linux
+    # Detect MySQL socket on macOS / Linux / Windows
     def mysql_socket
-      paths = [
-        '/opt/homebrew/var/mysql/mysql.sock', # Homebrew macOS
-        '/tmp/mysql.sock',                    # Default
-        '/var/run/mysqld/mysqld.sock' # Linux default
-      ]
+      platform = RUBY_PLATFORM
+
+      paths = case platform
+              when /darwin/ # macOS
+                [
+                  '/opt/homebrew/var/mysql/mysql.sock', # Homebrew macOS
+                  '/tmp/mysql.sock'                     # Fallback
+                ]
+              when /linux/
+                [
+                  '/var/run/mysqld/mysqld.sock', # Linux default
+                  '/tmp/mysql.sock' # Fallback
+                ]
+              when /mingw|mswin|win32/ # Windows
+                # Windows typically uses TCP connections, not sockets
+                return nil
+              else
+                ['/tmp/mysql.sock'] # Generic fallback
+              end
 
       paths.each { |p| return p if File.exist?(p) }
-      abort 'MySQL socket not found. Is MySQL running?'
+      abort 'MySQL socket not found. Is MySQL running? (On Windows, ensure MySQL is configured for TCP connections)'
     end
 
     # Default Rails DB user

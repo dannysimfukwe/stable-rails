@@ -7,9 +7,11 @@ RSpec.describe Stable::Services::HostsManager do
     tmp_hosts = File.join(Stable::Paths.root, 'hosts')
     FileUtils.mkdir_p(File.dirname(tmp_hosts))
     File.write(tmp_hosts, '')
-    # stub constant
-    stub_const('Stable::Services::HostsManager::HOSTS_FILE', tmp_hosts)
 
+    # Temporarily override the hosts_file method
+    allow(described_class).to receive(:hosts_file).and_return(tmp_hosts)
+
+    # Mock Process.uid to return 0 (root)
     allow(Process).to receive(:uid).and_return(0)
 
     described_class.add('example.test')

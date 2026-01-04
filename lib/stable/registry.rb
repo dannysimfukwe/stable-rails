@@ -34,10 +34,8 @@ module Stable
 
     def self.remove_app_config(app_name)
       config_file = Stable::Paths.app_config_file(app_name)
-      File.delete(config_file) if File.exist?(config_file)
+      FileUtils.rm_f(config_file)
     end
-
-    private
 
     def self.load_app_config(config_file)
       data = YAML.load_file(config_file)

@@ -75,6 +75,11 @@ module Stable
       Commands::Remove.new(name).call
     end
 
+    desc 'destroy NAME', 'Permanently delete a Rails app and all its files'
+    def destroy(name)
+      Commands::Destroy.new(name).call
+    end
+
     desc 'start NAME', 'Start a Rails app with its correct Ruby version'
     def start(name)
       Commands::Start.new(name).call

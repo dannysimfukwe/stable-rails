@@ -52,7 +52,11 @@ module Stable
         if pids.empty?
           puts "No app running on port #{app[:port]}"
         else
-          pids.each { |pid| Process.kill('TERM', pid.to_i) rescue nil }
+          pids.each do |pid|
+            Process.kill('TERM', pid.to_i)
+          rescue StandardError
+            nil
+          end
           puts "Stopped #{app[:name]} on port #{app[:port]}"
         end
 
@@ -89,9 +93,7 @@ module Stable
         apps.each do |app|
           next unless app[:started_at] && app[:pid]
 
-          unless pid_alive?(app[:pid])
-            AppRegistry.update(app[:name], started_at: nil, pid: nil)
-          end
+          AppRegistry.update(app[:name], started_at: nil, pid: nil) unless pid_alive?(app[:pid])
         end
       end
 

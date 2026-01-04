@@ -100,9 +100,7 @@ module Stable
         return false unless app
 
         # First check if we have PID info and if the process is alive
-        if app[:pid] && app[:started_at]
-          return ProcessManager.pid_alive?(app[:pid])
-        end
+        return ProcessManager.pid_alive?(app[:pid]) if app[:pid] && app[:started_at]
 
         # Fallback to port checking if no PID info available
         return false unless app[:port]

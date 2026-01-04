@@ -157,11 +157,46 @@ This will:
 stable remove app_name
 ```
 
-This will:  
-- Remove the app from registry.  
-- Remove `/etc/hosts` entry.  
-- Remove the Caddy reverse proxy block.  
+This will:
+- Remove the app from registry.
+- Remove `/etc/hosts` entry.
+- Remove the Caddy reverse proxy block.
 - Reload Caddy.
+
+**Note:** This only removes the app from Stable management. The project files remain intact.
+
+### Destroy an app (DANGER!)
+
+```bash
+stable destroy app_name
+```
+
+**⚠️ DANGER: This permanently deletes the application and ALL its files!**
+
+This command requires confirmation - you must type the exact app name to proceed. It will:
+
+- Stop the app if it's running
+- Remove the app from registry
+- Remove `/etc/hosts` entry
+- Remove the Caddy reverse proxy block
+- **Clean up RVM gemset** (e.g., `3.4.7@appname`)
+- **Delete the entire project directory and all files**
+- Reload Caddy
+
+**Example:**
+```bash
+$ stable destroy my-app
+⚠️  WARNING: This will permanently delete the application 'my-app'
+   Path: /Users/user/stable/projects/my-app
+   Domain: my-app.test
+   This action CANNOT be undone!
+
+Type 'my-app' to confirm destruction: my-app
+
+🗑️  Destroying my-app...
+   Deleting project directory...
+✅ Successfully destroyed my-app
+```
 
 ### Start an app
 

@@ -1,6 +1,6 @@
-# Stable CLI (macOS)
+# Stable CLI
 
-Stable is a CLI tool to manage local Rails applications with automatic Caddy setup on macOS, local trusted HTTPS certificates, and easy start/stop functionality.
+Stable is a cross-platform CLI tool to manage local Rails applications with automatic Caddy setup, local trusted HTTPS certificates, and easy start/stop functionality. Supports macOS, Linux, and Windows.
 
 ## Features
 
@@ -20,6 +20,68 @@ gem install stable-cli-rails
 ### Or add it to your Gemfile
 ```bash
 gem "stable-cli-rails"
+```
+
+## Platform-Specific Setup
+
+### macOS
+```bash
+# Install Homebrew if not already installed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install Stable CLI
+gem install stable-cli-rails
+
+# Run setup
+stable setup
+```
+
+### Linux (Ubuntu/Debian)
+```bash
+# Update package lists and install build tools
+sudo apt update
+sudo apt install -y build-essential curl
+
+# Install Ruby (if not already installed)
+sudo apt install -y ruby ruby-dev
+
+# Install Stable CLI
+gem install stable-cli-rails
+
+# Run setup
+stable setup
+```
+
+### Linux (CentOS/RHEL)
+```bash
+# Install build tools
+sudo yum install -y gcc gcc-c++ make curl
+
+# Install Ruby (if not already installed)
+sudo yum install -y ruby ruby-devel
+
+# Install Stable CLI
+gem install stable-cli-rails
+
+# Run setup
+stable setup
+```
+
+### Windows
+```bash
+# Install Ruby from https://rubyinstaller.org/
+# Install Git for Windows (includes Git Bash)
+# Install dependencies manually:
+# - Caddy: https://caddyserver.com/docs/install
+# - mkcert: https://github.com/FiloSottile/mkcert/releases
+# - PostgreSQL: https://www.postgresql.org/download/windows/
+# - MySQL: https://dev.mysql.com/downloads/mysql/
+
+# Install Stable CLI
+gem install stable-cli-rails
+
+# Run setup (may require manual dependency installation)
+stable setup
 ```
 
 ## Setup
@@ -149,6 +211,39 @@ stable upgrade-ruby myapp 3.4.4
 
 Upgrades the Ruby version for a specific app, updating `.ruby-version` and ensuring gemset compatibility.
 
+## Testing
+
+Stable uses RSpec for testing. To run the test suite:
+
+```bash
+# Run all tests
+bundle exec rspec
+
+# Run specific test file
+bundle exec rspec spec/commands/new_spec.rb
+
+# Run with Rake (same as bundle exec rspec)
+rake spec
+```
+
+The test suite includes:
+- Unit tests for all services and commands
+- Integration tests for CLI functionality
+- Cross-platform compatibility tests
+- Database integration tests
+
+### Test Structure
+
+```
+spec/
+├── cli/                    # CLI integration tests
+├── commands/              # Command-specific tests
+├── services/              # Service layer tests
+│   └── database/          # Database-specific tests
+├── spec_helper.rb         # Test configuration
+└── spec.opts             # RSpec options
+```
+
 ## Paths
 
 - Caddy home: `~/StableCaddy`
@@ -159,21 +254,93 @@ Upgrades the Ruby version for a specific app, updating `.ruby-version` and ensur
 
 ## Dependencies
 
-- Homebrew  
-- Caddy  
-- mkcert  
-- RVM (or rbenv fallback)  
-- PostgreSQL
-- MySQL
+### Package Manager (one of):
+- **macOS**: Homebrew
+- **Linux**: APT (Ubuntu/Debian), YUM/DNF (CentOS/RHEL), or Pacman (Arch)
+- **Windows**: Manual installation required
 
-`stable` will install missing dependencies automatically, including PostgreSQL and MySQL if missing.
+### Core Dependencies:
+- **Caddy**: Web server and reverse proxy
+- **mkcert**: Local HTTPS certificate generation
+- **Ruby version manager**: RVM, rbenv, or chruby
+- **PostgreSQL**: Database server (optional)
+- **MySQL**: Database server (optional)
+
+`stable setup` will attempt to install missing dependencies automatically on macOS and Linux. On Windows, manual installation is required.
 
 ## Notes
 
-- Make sure to run `stable setup` initially.  
-- Requires `sudo` to modify `/etc/hosts`.  
-- Rails apps are started on ports assigned by Stable (default 3000+).  
-- Domains are automatically suffixed with `.test`.  
+- Make sure to run `stable setup` initially.
+- **macOS/Linux**: Requires `sudo` to modify `/etc/hosts`.
+- **Windows**: Requires administrator privileges to modify `C:\Windows\System32\drivers\etc\hosts`.
+- Rails apps are started on ports assigned by Stable (default 3000+).
+- Domains are automatically suffixed with `.test`.
+- **Windows**: Some features may have limited support. Manual installation of dependencies is required.
+
+## How to Contribute
+
+We welcome contributions to Stable! Here's how to get started:
+
+### Development Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-username/stable-cli.git
+   cd stable-cli
+   ```
+
+2. **Install dependencies**
+   ```bash
+   bundle install
+   ```
+
+3. **Run tests**
+   ```bash
+   bundle exec rspec
+   ```
+
+4. **Install locally for testing**
+   ```bash
+   gem build stable-cli-rails.gemspec
+   gem install stable-cli-rails-*.gem
+   ```
+
+### Development Workflow
+
+1. **Create a feature branch**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Make your changes** and ensure tests pass
+   ```bash
+   bundle exec rspec
+   ```
+
+3. **Follow the coding standards**
+   - Use `bundle exec rubocop` to check code style
+   - Write tests for new features
+   - Update documentation as needed
+
+4. **Submit a pull request**
+   - Ensure all tests pass
+   - Update CHANGELOG.md if applicable
+   - Provide a clear description of changes
+
+### Cross-Platform Testing
+
+Since Stable supports multiple platforms, please test on:
+- macOS (primary development platform)
+- Linux (Ubuntu/Debian recommended)
+- Windows (if possible, or document limitations)
+
+### Reporting Issues
+
+When reporting bugs, please include:
+- Your operating system and version
+- Ruby version (`ruby -v`)
+- Steps to reproduce the issue
+- Expected vs actual behavior
 
 ## License
 

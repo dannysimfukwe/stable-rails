@@ -3,11 +3,7 @@
 module Stable
   module Paths
     def self.root
-      if ENV['STABLE_TEST_ROOT']
-        ENV['STABLE_TEST_ROOT']
-      else
-        File.expand_path('~/StableCaddy')
-      end
+      ENV['STABLE_TEST_ROOT'] || File.expand_path('~/StableCaddy')
     end
 
     def self.caddy_dir

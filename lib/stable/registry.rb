@@ -66,6 +66,21 @@ module Stable
     def self.remove_app_config(app_name)
       config_file = Stable::Paths.app_config_file(app_name)
       FileUtils.rm_f(config_file)
+
+      # Also remove from legacy apps.yml file for backward compatibility
+      remove_from_legacy_file(app_name)
+    end
+
+    def self.remove_from_legacy_file(app_name)
+      legacy_file = Stable::Paths.apps_file
+      return unless File.exist?(legacy_file)
+
+      data = YAML.load_file(legacy_file) || []
+      filtered_data = data.reject { |entry| entry.is_a?(Hash) && entry['name'] == app_name }
+
+      return unless filtered_data != data
+
+      File.write(legacy_file, filtered_data.to_yaml)
     end
 
     def self.parse_config_file(config_file)

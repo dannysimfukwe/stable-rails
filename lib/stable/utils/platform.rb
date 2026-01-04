@@ -68,6 +68,7 @@ module Stable
             # Use lsof to find PIDs listening on the port
             output = `lsof -i tcp:#{port} -sTCP:LISTEN -t 2>/dev/null`.strip
             return [] if output.empty?
+
             output.split("\n").map(&:to_i)
           when :windows
             # On Windows, this is more complex. For now, return empty array

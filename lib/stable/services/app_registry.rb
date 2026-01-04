@@ -74,12 +74,12 @@ module Stable
           data = YAML.load_file(legacy_file) || []
           idx = data.find_index { |app| app['name'] == name || app[:name] == name }
 
-          if idx
-            # Convert symbols to strings for YAML compatibility
-            legacy_format = updated_app.transform_keys(&:to_s)
-            data[idx] = legacy_format
-            File.write(legacy_file, data.to_yaml)
-          end
+          return unless idx
+
+          # Convert symbols to strings for YAML compatibility
+          legacy_format = updated_app.transform_keys(&:to_s)
+          data[idx] = legacy_format
+          File.write(legacy_file, data.to_yaml)
         end
 
         def mark_stopped(name)

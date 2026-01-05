@@ -11,6 +11,8 @@ module Stable
         ensure_apps_registry
         ensure_caddyfile
         # start or ensure caddy is running like original CLI
+        return if ENV['STABLE_TEST_MODE']
+
         Stable::Services::CaddyManager.ensure_running!
         puts "Caddy home initialized at #{Stable::Paths.root}"
         self.class.ensure_dependencies!
@@ -44,6 +46,8 @@ module Stable
       end
 
       def ensure_dependencies!
+        return if ENV['STABLE_TEST_MODE']
+
         platform = Stable::Utils::Platform.current
 
         unless Stable::Utils::PackageManager.available?

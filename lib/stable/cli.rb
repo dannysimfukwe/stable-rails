@@ -13,6 +13,8 @@ module Stable
   class CLI < Thor
     def initialize(*)
       super
+      return if ENV['STABLE_TEST_MODE']
+
       Stable::Bootstrap.run!
       Services::SetupRunner.ensure_dependencies!
     end
@@ -128,27 +130,9 @@ module Stable
       Commands::Doctor.new.call
     end
 
-    desc 'upgrade-ruby NAME VERSION', 'Upgrade Ruby for an app'
+    desc 'upgrade-ruby NAME VERSION', 'Change Ruby version for an app (upgrade, downgrade, or switch)'
     def upgrade_ruby(name, version)
-      app = Services::AppRegistry.find(name)
-      unless app
-        puts "No app named #{name}"
-        return
-      end
-
-      if Stable::Services::Ruby.rvm_available?
-        system("bash -lc 'rvm install #{version}'")
-      elsif Stable::Services::Ruby.rbenv_available?
-        system("rbenv install #{version}")
-      else
-        puts 'No Ruby version manager found'
-        return
-      end
-
-      File.write(File.join(app[:path], '.ruby-version'), version)
-      Services::AppRegistry.update(name, ruby: version)
-
-      puts "#{name} now uses Ruby #{version}"
+      Commands::UpgradeRuby.new(name, version).call
     end
 
     private

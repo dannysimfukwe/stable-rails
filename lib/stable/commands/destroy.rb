@@ -65,6 +65,9 @@ module Stable
       end
 
       def cleanup_rvm_gemset(app)
+        # Skip RVM operations in test mode
+        return if ENV['STABLE_TEST_MODE']
+
         # Only clean up RVM gemsets on Unix-like systems (macOS/Linux)
         # Windows uses different Ruby version managers
         return unless Stable::Utils::Platform.unix?
@@ -85,6 +88,11 @@ module Stable
       end
 
       def delete_project_directory(path)
+        if ENV['STABLE_TEST_MODE']
+          puts '   Deleting project directory...'
+          return
+        end
+
         if File.exist?(path)
           puts '   Deleting project directory...'
           FileUtils.rm_rf(path)

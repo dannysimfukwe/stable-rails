@@ -9,10 +9,14 @@ require 'fileutils'
 TMP_STABLE_ROOT = Dir.mktmpdir('stable_spec')
 ENV['STABLE_TEST_ROOT'] = TMP_STABLE_ROOT
 
+# Set test environment variable to skip bootstrap
+ENV['STABLE_TEST_MODE'] = 'true'
+
 require_relative '../lib/stable'
 
 RSpec.configure do |config|
   config.example_status_persistence_file_path = '.rspec_status'
+
   config.before(:each) do
     # Start each example with an empty projects directory
     projects_dir = Stable::Paths.projects_dir

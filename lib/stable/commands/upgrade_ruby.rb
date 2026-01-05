@@ -19,6 +19,7 @@ module Stable
         end
 
         current_version = app[:ruby] || RUBY_VERSION
+
         puts "#{action(current_version, @version)} #{@name} from Ruby #{current_version} to #{@version}..."
         puts ''
 
@@ -50,90 +51,83 @@ module Stable
           return
         end
 
-        # Clean approach: Clear old gemset and recreate fresh one with gems (like creating a new app)
-        if platform == :windows
-          puts "Setting up Ruby #{@version} environment..."
-          puts "Installing gems with Ruby #{@version}..."
+        # Clean, simple approach: Remove current Ruby environment and install new one fresh
+        puts "🔄 Upgrading #{@name} from Ruby #{current_version} to #{@version}..."
 
-          # On Windows, just update the ruby-version and run bundle install
-          # Remove old Gemfile.lock for fresh resolution
-          gemfile_lock = File.join(app[:path], 'Gemfile.lock')
-          FileUtils.rm_f(gemfile_lock)
+        # 1. Remove current Ruby version/gemset (like destroy command)
+        cleanup_rvm_gemset(app)
 
-          puts 'Run the following commands manually in the app directory:'
-          puts "  cd #{app[:path]}"
-          puts '  bundle install'
-          puts ''
-          puts 'This will install gems with the correct Ruby version.'
-          success = true
-        else
-          puts "Setting up fresh gemset for Ruby #{@version}..."
-
-        # 1. Clear/uninstall the current gemset (3.4.4@myapp)
-        puts 'Clearing old gemset...'
-        unless ENV['STABLE_TEST_MODE']
-          Stable::System::Shell.run("bash -lc 'source #{Stable::Services::Ruby.rvm_script} && rvm gemset delete #{@name} --force || true'")
-        end
-
-        # 2. Recreate the gemset and install gems in one clean operation
-        puts "Setting up fresh gemset #{@version}@#{@name}..."
-        unless ENV['STABLE_TEST_MODE']
-          # Verify app directory and Gemfile exist
-          unless File.directory?(app[:path])
-            puts "❌ App directory not found: #{app[:path]}"
-            return
-          end
-
-          gemfile_path = File.join(app[:path], 'Gemfile')
-          unless File.exist?(gemfile_path)
-            puts "❌ Gemfile not found in: #{app[:path]}"
-            return
-          end
-
-          # Remove old Gemfile.lock for fresh resolution
-          gemfile_lock = File.join(app[:path], 'Gemfile.lock')
-          FileUtils.rm_f(gemfile_lock)
-
-          # Create gemset and run bundle install in a single RVM context to avoid native extension issues
-          # Use BUNDLE_GEMFILE to specify the Gemfile location explicitly
-          gemfile_path = File.join(app[:path], 'Gemfile')
-          bundle_cmd = "BUNDLE_GEMFILE=#{Shellwords.escape(gemfile_path)} bundle install --redownload --no-cache"
-          full_cmd = "bash -lc 'source #{Stable::Services::Ruby.rvm_script} && rvm #{@version} do rvm gemset create #{@name} && rvm #{@version}@#{@name} do cd #{Shellwords.escape(app[:path])} && #{bundle_cmd}'"
-          success = Stable::System::Shell.run(full_cmd)
-        else
-          success = true
-        end
-        end
-
-        if success
-          if platform == :windows
-            puts "✅ Ruby version updated to #{@version}!"
-            puts "   Run 'bundle install' manually in the app directory to install gems."
-          else
-            puts "✅ Gems installed successfully in Ruby #{@version}!"
-          end
-        else
-          puts '⚠️  Gem installation had issues, but environment is set up.'
-        end
-
-        # Update configuration
-        puts 'Updating app configuration...'
-        File.write(File.join(app[:path], '.ruby-version'), @version)
-        File.write(File.join(app[:path], '.ruby-gemset'), "#{@name}\n") unless platform == :windows
-        Services::AppRegistry.update(@name, ruby: @version)
+        # 2. Install new Ruby version fresh (like app creator)
+        setup_new_ruby_version(app, @version)
 
         puts ''
-        puts "✅ #{@name} #{action(current_version, @version).split.first.downcase}d to Ruby #{@version}!"
-        if platform == :windows
-          puts '   Ruby version updated - run bundle install manually'
-        else
-          puts "   Old gemset cleared, fresh #{@version}@#{@name} gemset created with gems"
-        end
+        puts "✅ #{@name} #{past_tense_action(action(current_version, @version))} to Ruby #{@version}!"
+        puts "   Old gemset cleared, fresh #{@version}@#{@name} gemset created with gems"
         puts ''
         puts "Start with: stable start #{@name}"
       end
 
       private
+
+      def cleanup_rvm_gemset(app)
+        # Skip RVM operations in test mode
+        return if ENV['STABLE_TEST_MODE']
+
+        # Only clean up RVM gemsets on Unix-like systems (macOS/Linux)
+        # Windows uses different Ruby version managers
+        return unless Stable::Utils::Platform.unix?
+
+        ruby_version = app[:ruby]
+        # Handle different ruby version formats (e.g., "3.4.7", "ruby-3.4.7")
+        clean_ruby_version = ruby_version.to_s.sub(/^ruby-/, '')
+        gemset_name = "#{clean_ruby_version}@#{@name}"
+
+        puts "   Cleaning up RVM gemset #{gemset_name}..."
+        begin
+          # Use system to run RVM command to delete the gemset
+          system("bash -lc 'source ~/.rvm/scripts/rvm && rvm gemset delete #{gemset_name} --force' 2>/dev/null || true")
+          puts "   ✅ RVM gemset #{gemset_name} cleaned up"
+        rescue StandardError => e
+          puts "   ⚠️  Could not clean up RVM gemset #{gemset_name}: #{e.message}"
+        end
+      end
+
+      def setup_new_ruby_version(app, new_version)
+        # Follow app_creator.rb pattern exactly
+        unless ENV['STABLE_TEST_MODE']
+          # Ensure Ruby version & RVM (like app_creator.rb)
+          Stable::Services::Ruby.ensure_version(new_version)
+          Stable::Services::Ruby.ensure_rvm!
+
+          # Create gemset (like app_creator.rb)
+          Stable::System::Shell.run("bash -lc 'source #{Stable::Services::Ruby.rvm_script} && rvm #{new_version} do rvm gemset create #{@name} || true'")
+
+          rvm_cmd = Stable::Services::Ruby.rvm_prefix(new_version, @name)
+
+          # Install Bundler (like app_creator.rb)
+          Stable::System::Shell.run("bash -lc '#{rvm_cmd} gem install bundler --no-document'")
+
+          # Run bundle install (like app_creator.rb)
+          Stable::System::Shell.run(rvm_run('bundle install --jobs=4 --retry=3', chdir: app[:path]))
+        end
+
+        # Update app configuration (like app_creator.rb)
+        unless ENV['STABLE_TEST_MODE']
+          Dir.chdir(app[:path]) do
+            File.write('.ruby-version', "#{new_version}\n")
+            File.write('.ruby-gemset', "#{@name}\n")
+          end
+        end
+
+        # Update registry
+        Services::AppRegistry.update(@name, ruby: new_version)
+        puts "   ✅ New Ruby #{new_version} environment set up with gems"
+      end
+
+      def rvm_run(cmd, chdir: nil)
+        cd = chdir ? "cd #{chdir} && " : ''
+        "bash -lc '#{cd}source #{Dir.home}/.rvm/scripts/rvm && rvm #{@version}@#{@name} do #{cmd}'"
+      end
 
       def action(current_version, new_version)
         current_parts = current_version.split('.').map(&:to_i)
@@ -149,6 +143,19 @@ module Stable
           'Downgrading'
         else
           'Switching'
+        end
+      end
+
+      def past_tense_action(action)
+        case action
+        when 'Upgrading'
+          'upgraded'
+        when 'Downgrading'
+          'downgraded'
+        when 'Switching'
+          'switched'
+        else
+          'updated'
         end
       end
     end

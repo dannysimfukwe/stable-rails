@@ -2,11 +2,11 @@
 
 Gem::Specification.new do |spec|
   spec.name          = 'stable-cli-rails'
-  spec.version       = '0.8.2'
+  spec.version       = '0.8.3'
   spec.authors       = ['Danny Simfukwe']
   spec.email         = ['dannysimfukwe@gmail.com']
 
-  spec.summary       = 'CLI tool to manage local Rails apps with automatic Caddy and HTTPS setup'
+  spec.summary       = 'Zero-config CLI tool to manage local Rails apps with automatic Caddy and HTTPS setup'
   spec.description   = 'Stable is a cross-platform CLI tool to manage local Rails applications ' \
                        'with automatic Caddy setup, local trusted HTTPS certificates, ' \
                        'and easy start/stop functionality. Supports macOS, Linux, and Windows.'

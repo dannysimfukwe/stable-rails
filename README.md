@@ -12,8 +12,10 @@ Stable is a cross-platform CLI tool to manage local Rails applications with auto
 - Automatically generate and manage local HTTPS certificates using `mkcert`.
 - Automatically assign `.test` domains.
 - Start Rails apps with integrated Caddy reverse proxy.
+- Stop and restart Rails apps.
 - Reload Caddy after adding/removing apps.
 - List all registered apps.
+- Upgrade, downgrade, or switch Ruby versions for apps.
 
 ## Installation
 
@@ -100,7 +102,7 @@ This will create:
 - `~/StableCaddy/` for Caddy configuration.
 - `~/StableCaddy/certs` for generated certificates.
 - `~/StableCaddy/projects` for Rails applications.
-- `~/StableCaddy/Caddyfile` for Caddy configuration.  
+- `~/StableCaddy/Caddyfile` for Caddy configuration.
 
 ## CLI Commands
 
@@ -112,6 +114,14 @@ stable list
 ```
 
 Lists all registered apps and their domains.
+
+### Setup Stable environment
+
+```bash
+stable setup
+```
+
+Initializes the Stable environment by creating required directories and installing dependencies. This is required before using other Stable commands.
 
 ### Create a new Rails app
 
@@ -217,6 +227,14 @@ stable stop app_name
 ```
 
 Stops the Rails server running on the assigned port.
+
+### Restart an app
+
+```bash
+stable restart app_name
+```
+
+Stops and then starts the Rails server, useful for reloading code changes or configuration updates.
 
 ### Secure an app manually
 

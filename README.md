@@ -16,6 +16,7 @@ Stable is a cross-platform CLI tool to manage local Rails applications with auto
 - Reload Caddy after adding/removing apps.
 - List all registered apps.
 - Upgrade, downgrade, or switch Ruby versions for apps.
+- Run multiple apps with different Ruby versions simultaneously.
 
 ## Installation
 
@@ -270,8 +271,8 @@ Changes the Ruby version for a specific app (upgrade, downgrade, or switch). Aut
 
 #### Cross-Platform Support
 
-- **macOS/Linux**: Full automation with RVM/rbenv gemsets
-- **Windows**: Provides guidance for RubyInstaller and manual bundle install
+- **macOS/Linux**: Full automation with RVM gemsets and automatic gem installation
+- **Windows**: Updates app configuration and provides instructions for manual Ruby/bundle installation
 
 #### Examples
 
@@ -287,7 +288,7 @@ stable upgrade-ruby myapp 3.4.5
 ```
 
 **macOS/Linux**: Creates fresh RVM gemsets and installs gems automatically
-**Windows**: Updates `.ruby-version` and provides manual bundle install instructions
+**Windows**: Updates `.ruby-version` file and provides manual installation instructions
 
 The command updates `.ruby-version`, cleans up old gemsets (on Unix), creates fresh environments, and ensures gem compatibility.
 

@@ -51,13 +51,13 @@ module Stable
           return
         end
 
-        # Clean, simple approach: Remove current Ruby environment and install new one fresh
+        # Remove current Ruby environment and install new one fresh
         puts "🔄 Upgrading #{@name} from Ruby #{current_version} to #{@version}..."
 
-        # 1. Remove current Ruby version/gemset (like destroy command)
+        # 1. Remove current Ruby version/gemset
         cleanup_rvm_gemset(app)
 
-        # 2. Install new Ruby version fresh (like app creator)
+        # 2. Install new Ruby version
         setup_new_ruby_version(app, @version)
 
         puts ''
@@ -93,25 +93,23 @@ module Stable
       end
 
       def setup_new_ruby_version(app, new_version)
-        # Follow app_creator.rb pattern exactly
         unless ENV['STABLE_TEST_MODE']
-          # Ensure Ruby version & RVM (like app_creator.rb)
           Stable::Services::Ruby.ensure_version(new_version)
           Stable::Services::Ruby.ensure_rvm!
 
-          # Create gemset (like app_creator.rb)
+          # Create gemset
           Stable::System::Shell.run("bash -lc 'source #{Stable::Services::Ruby.rvm_script} && rvm #{new_version} do rvm gemset create #{@name} || true'")
 
           rvm_cmd = Stable::Services::Ruby.rvm_prefix(new_version, @name)
 
-          # Install Bundler (like app_creator.rb)
+          # Install Bundler
           Stable::System::Shell.run("bash -lc '#{rvm_cmd} gem install bundler --no-document'")
 
-          # Run bundle install (like app_creator.rb)
+          # Run bundle install
           Stable::System::Shell.run(rvm_run('bundle install --jobs=4 --retry=3', chdir: app[:path]))
         end
 
-        # Update app configuration (like app_creator.rb)
+        # Update app configuration
         unless ENV['STABLE_TEST_MODE']
           Dir.chdir(app[:path]) do
             File.write('.ruby-version', "#{new_version}\n")

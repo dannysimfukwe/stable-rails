@@ -12,12 +12,9 @@ module Stable
         app = Services::AppRegistry.find(@app_name)
         abort "App '#{@app_name}' not found" unless app
 
-        url = build_url(app)
-
         abort "App '#{@app_name}' is not running" unless app[:pid] && process_alive?(app[:pid])
-
+        url = build_url(app)
         open_browser(url)
-
         puts "✔ Opened #{url}"
       end
 

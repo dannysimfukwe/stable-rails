@@ -135,6 +135,11 @@ module Stable
       Commands::UpgradeRuby.new(name, version).call
     end
 
+    desc 'open APP', 'Open a running app in the browser'
+    def open(app_name)
+      Stable::Commands::Open.new(app_name).call
+    end
+
     private
 
     def next_free_port

@@ -237,6 +237,14 @@ stable restart app_name
 
 Stops and then starts the Rails server, useful for reloading code changes or configuration updates.
 
+### Open an app in the browser
+
+```bash
+stable open app_name
+```
+
+Opens an app in the browser.
+
 ### Secure an app manually
 
 ```bash

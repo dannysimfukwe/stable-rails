@@ -27,4 +27,9 @@ RSpec.configure do |config|
   config.after(:suite) do
     FileUtils.rm_rf(TMP_STABLE_ROOT)
   end
+
+  config.before(:each) do
+    allow(Kernel).to receive(:system)
+    allow(Kernel).to receive(:abort) { |msg| raise SystemExit, msg }
+  end
 end

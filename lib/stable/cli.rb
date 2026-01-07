@@ -148,6 +148,12 @@ module Stable
       Commands::Share.new(name, provider: provider.to_sym, qrcode: options[:qrcode]).call
     end
 
+    desc 'workdir APP', 'Open the app folder in a code editor'
+    method_option :editor, type: :string, default: 'vscode', desc: 'Code editor to use (vscode, sublime, atom, etc.)'
+    def workdir(name)
+      Commands::Workdir.new(name, options[:editor]).call
+    end
+
     private
 
     def next_free_port

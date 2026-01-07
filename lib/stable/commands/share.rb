@@ -34,7 +34,10 @@ module Stable
       private
 
       def running?(app)
-        Process.kill(0, app[:pid])
+        pid = app[:pid]
+        return false unless pid
+
+        Process.kill(0, pid)
         true
       rescue Errno::ESRCH
         false

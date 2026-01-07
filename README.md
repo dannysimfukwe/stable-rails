@@ -245,6 +245,22 @@ stable open app_name
 
 Opens an app in the browser.
 
+### Open app folder in editor
+
+```bash
+stable workdir app_name [--editor vscode]
+```
+
+Opens the app folder in a code editor (defaults to vscode). Supported editors include vscode, sublime, atom, etc.
+
+### Share an app via public tunnel
+
+```bash
+stable share app_name [provider] [--qrcode]
+```
+
+Shares the app via a public tunnel using the specified provider (ngrok or stable, defaults to ngrok). Optionally generates a QR code for the shared URL.
+
 ### Secure an app manually
 
 ```bash
@@ -299,6 +315,8 @@ stable upgrade-ruby myapp 3.4.5
 **Windows**: Updates `.ruby-version` file and provides manual installation instructions
 
 The command updates `.ruby-version`, cleans up old gemsets (on Unix), creates fresh environments, and ensures gem compatibility.
+
+
 
 ## Testing
 

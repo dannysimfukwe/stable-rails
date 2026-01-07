@@ -136,8 +136,16 @@ module Stable
     end
 
     desc 'open APP', 'Open a running app in the browser'
-    def open(app_name)
-      Stable::Commands::Open.new(app_name).call
+    def open(name)
+      Stable::Commands::Open.new(name).call
+    end
+
+    desc 'share APP [PROVIDER]', 'Share app via public tunnel'
+    method_option :provider, type: :string, default: nil, desc: 'Tunnel provider (ngrok, stable)'
+    method_option :qrcode, type: :boolean, default: false, desc: 'Generate a Qr code for the shared URL'
+    def share(name, provider = nil, qrcode: false)
+      provider ||= options[:provider] || 'ngrok'
+      Commands::Share.new(name, provider: provider.to_sym, qrcode: options[:qrcode]).call
     end
 
     private

@@ -130,8 +130,8 @@ module Stable
         new_parts = new_version.split('.').map(&:to_i)
 
         if new_parts[0] > current_parts[0] ||
-          (new_parts[0] == current_parts[0] && new_parts[1] > current_parts[1]) ||
-          (new_parts[0] == current_parts[0] && new_parts[1] == current_parts[1] && new_parts[2] > current_parts[2])
+           (new_parts[0] == current_parts[0] && new_parts[1] > current_parts[1]) ||
+           (new_parts[0] == current_parts[0] && new_parts[1] == current_parts[1] && new_parts[2] > current_parts[2])
           'Upgrading'
         elsif new_parts[0] < current_parts[0] ||
               (new_parts[0] == current_parts[0] && new_parts[1] < current_parts[1]) ||

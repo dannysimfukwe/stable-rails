@@ -18,6 +18,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
   spec.required_ruby_version = '>= 3.2.4'
 
+  spec.add_dependency 'rqrcode'
   spec.add_dependency 'thor', '~> 1.2.2'
   spec.metadata['rubygems_mfa_required'] = 'true'
 end

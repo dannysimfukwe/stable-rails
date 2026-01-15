@@ -87,6 +87,11 @@ module Stable
       Commands::Start.new(name).call
     end
 
+    desc 'start-all', 'Start all registered Rails apps'
+    def start_all
+      Commands::StartAll.new.call
+    end
+
     desc 'restart NAME', 'Restart a Rails app'
     def restart(name)
       Commands::Restart.new(name).call
@@ -95,6 +100,11 @@ module Stable
     desc 'stop NAME', 'Stop a Rails app (default port 3000)'
     def stop(name)
       Commands::Stop.new(name).call
+    end
+
+    desc 'stop-all', 'Stop all running Rails apps'
+    def stop_all
+      Commands::StopAll.new.call
     end
 
     desc 'setup', 'Sets up Caddy and local trusted certificates'

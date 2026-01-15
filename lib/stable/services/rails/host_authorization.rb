@@ -55,8 +55,8 @@ module Stable
 
           content = File.read(env_rb)
           content.include?('config.load_defaults 6') ||
-            content.include?('config.load_defaults 7') ||
-            content.include?('config.load_defaults 8')
+          content.include?('config.load_defaults 7') ||
+          content.include?('config.load_defaults 8')
         end
       end
     end

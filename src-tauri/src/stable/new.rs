@@ -1,3 +1,6 @@
+use crate::stable::config::{
+    AppConfig, find_available_port_for_app, save_app_config, update_global_caddyfile,
+};
 use crate::stable::utils::{
     apps_folder, ensure_hosts_entry, run_shell_output, shell_escape, slugify_name,
 };
@@ -26,9 +29,15 @@ where
         anyhow::bail!("App '{}' already exists", slug_name);
     }
 
+    let port = find_available_port_for_app(&slug_name)?;
+    log(&format!("Assigning port {} to this app", port));
+
     let escaped_name = shell_escape(&slug_name);
     progress("Creating Rails app...");
-    let rails_output = run_shell_output(&apps_root, &format!("rails new '{}'", escaped_name))?;
+    let rails_output = run_shell_output(
+        &apps_root,
+        &format!("rails new '{}' --skip-bundle", escaped_name),
+    )?;
     log_output(&log, &rails_output);
     if !rails_output.status.success() {
         anyhow::bail!("rails new failed for '{}'", app_name);
@@ -64,43 +73,19 @@ where
         }
     }
 
-    let caddyfile_path = app_path.join("Caddyfile");
-    let mut caddyfile_content = format!("{}.test {{\n", slug_name);
+    let mut app_config = AppConfig::default();
+    app_config.name = slug_name.clone();
+    app_config.port = port;
+    app_config.domain = domain.clone();
+    app_config.rails_env = "development".to_string();
+    app_config.tls_enabled = true;
+    app_config.caddy_enabled = true;
+    save_app_config(&slug_name, &app_config)?;
+    log(&format!("Saved config for {} on port {}", slug_name, port));
 
-    if cert_path.exists() && key_path.exists() {
-        caddyfile_content.push_str(&format!(
-            "    tls {} {}\n",
-            cert_path.display(),
-            key_path.display()
-        ));
-    } else {
-        caddyfile_content.push_str("    tls internal\n");
-    }
-
-    caddyfile_content.push_str("    reverse_proxy 127.0.0.1:3000\n}\n");
-
-    log(&format!("App domain: https://{}", domain));
-    if let Err(err) = fs::write(&caddyfile_path, caddyfile_content) {
-        log(&format!("Failed to write Caddyfile: {}", err));
-        return Err(err.into());
-    }
-
-    progress("Reloading Caddy...");
-    let caddy_path = shell_escape(&caddyfile_path.to_string_lossy());
-    let reload_status = run_shell_output(
-        &app_path,
-        &format!("caddy reload --config '{}'", caddy_path),
-    );
-    if let Ok(output) = reload_status {
-        log_output(&log, &output);
-        if !output.status.success() {
-            let start_output =
-                run_shell_output(&app_path, &format!("caddy start --config '{}'", caddy_path));
-            if let Ok(started) = start_output {
-                log_output(&log, &started);
-            }
-        }
-    }
+    progress("Updating Caddy configuration...");
+    update_global_caddyfile()?;
+    log("Caddy configuration updated.");
 
     progress("Stable app ready.");
     Ok(())

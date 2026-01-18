@@ -1,3 +1,4 @@
+use crate::stable::config::{delete_app_config, update_global_caddyfile};
 use crate::stable::utils::{apps_folder, run_shell, run_shell_output};
 use anyhow::{Context, Result};
 use std::fs;
@@ -14,11 +15,6 @@ pub fn run(name: &str) -> Result<()> {
     let _ = run_shell(&app_path, &format!("pkill -f 'rails server' 2>/dev/null"));
     let _ = run_shell(&app_path, "pkill -f caddy 2>/dev/null");
 
-    let caddyfile_path = app_path.join("Caddyfile");
-    if caddyfile_path.exists() {
-        let _ = fs::remove_file(&caddyfile_path);
-    }
-
     let cert_path = app_path.join("cert.pem");
     let key_path = app_path.join("key.pem");
     let _ = fs::remove_file(&cert_path);
@@ -33,7 +29,12 @@ pub fn run(name: &str) -> Result<()> {
         let _ = run_shell_output(Path::new("/"), &script);
     }
 
+    let _ = delete_app_config(name)?;
+
     fs::remove_dir_all(&app_path)
         .with_context(|| format!("Failed to remove {}", app_path.display()))?;
+
+    update_global_caddyfile()?;
+
     Ok(())
 }

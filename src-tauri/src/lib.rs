@@ -8,28 +8,13 @@ use tauri::{AppHandle, Emitter, Manager};
 mod stable;
 
 #[derive(Serialize)]
-struct AppEntry {
-    name: String,
-    url: String,
-}
-
-#[derive(Serialize)]
 struct DoctorReport {
     report: String,
 }
 
 #[tauri::command]
-fn list_apps() -> Result<Vec<AppEntry>, String> {
-    stable::list::run()
-        .map(|apps| {
-            apps.into_iter()
-                .map(|name| AppEntry {
-                    url: format!("https://{}.test", name),
-                    name,
-                })
-                .collect()
-        })
-        .map_err(|err| err.to_string())
+fn list_apps() -> Result<Vec<stable::list::AppInfo>, String> {
+    stable::list::run().map_err(|err| err.to_string())
 }
 
 #[tauri::command]

@@ -11,7 +11,7 @@ const views = {};
 const state = {
   apps: [],
   busy: false,
-  running: null,
+  runningApps: [],
   uptimeTimer: null,
 };
 
@@ -120,8 +120,8 @@ function renderApps(apps) {
                 <button type="button" class="link" data-action="open" data-app="${app.name}">${app.url}</button>
               </td>
               <td>
-                <span class="status-badge ${state.running?.name === app.name ? 'running' : ''}">
-                  ${state.running?.name === app.name ? 'Running' : 'Stopped'}
+                <span class="status-badge ${state.runningApps.includes(app.name) ? 'running' : ''}">
+                  ${state.runningApps.includes(app.name) ? 'Running' : 'Stopped'}
                 </span>
               </td>
               <td class="actions-cell">
@@ -145,8 +145,8 @@ function updateButtonStates() {
   const startAllBtn = document.querySelector("#start-all");
   const stopAllBtn = document.querySelector("#stop-all");
   const hasApps = state.apps.length > 0;
-  const hasStoppedApps = state.apps.some(app => state.running?.name !== app.name);
-  const hasRunningApp = state.running !== null;
+  const hasStoppedApps = state.apps.some(app => !state.runningApps.includes(app.name));
+  const hasRunningApp = state.runningApps.length > 0;
 
   if (startAllBtn) {
     startAllBtn.disabled = !hasApps || !hasStoppedApps;
@@ -267,26 +267,24 @@ function formatUptime(startedAt) {
 }
 
 function showRunView(app) {
-  state.running = {
-    ...app,
-    startedAt: Date.now(),
-  };
+  if (!state.runningApps.includes(app.name)) {
+    state.runningApps.push(app.name);
+  }
   const appNameLink = document.getElementById("run-app-name-link");
   if (appNameLink) appNameLink.textContent = app.name;
   runAppUrl.textContent = app.url;
   runNote.textContent = "Your app is served via Caddy with TLS.";
-  runUptime.textContent = formatUptime(state.running.startedAt);
+  runUptime.textContent = formatUptime(Date.now());
   if (state.uptimeTimer) {
     clearInterval(state.uptimeTimer);
   }
   state.uptimeTimer = setInterval(() => {
-    runUptime.textContent = formatUptime(state.running.startedAt);
+    runUptime.textContent = formatUptime(Date.now());
   }, 1000);
   switchView("run");
 }
 
 function showAppDetails(app) {
-  state.running = app;
   const appNameLink = document.getElementById("run-app-name-link");
   if (appNameLink) appNameLink.textContent = app.name;
   runAppUrl.textContent = app.url;
@@ -344,17 +342,25 @@ async function handleAppAction(action, name) {
     if (action === "start") {
       const app = state.apps.find((entry) => entry.name === name);
       if (app) {
-        state.running = { name: app.name };
+        if (!state.runningApps.includes(app.name)) {
+          state.runningApps.push(app.name);
+        }
         loadApps();
         showRunView(app);
       }
     } else if (action === "stop") {
-      state.running = null;
+      state.runningApps = state.runningApps.filter(n => n !== name);
       loadApps();
-      switchView("apps");
+      if (state.runningApps.length > 0) {
+        switchView("apps");
+      } else {
+        switchView("apps");
+      }
       setStatus("Ready");
+    } else if (action === "restart") {
+      loadApps();
     } else if (action === "remove") {
-      state.running = null;
+      state.runningApps = state.runningApps.filter(n => n !== name);
       loadApps();
       setStatus("Ready");
     } else {
@@ -445,7 +451,7 @@ function wireEvents() {
   });
 
   document.querySelector("#start-all")?.addEventListener("click", async () => {
-    const stoppedApps = state.apps.filter(app => state.running?.name !== app.name);
+    const stoppedApps = state.apps.filter(app => !state.runningApps.includes(app.name));
     if (!stoppedApps.length) {
       showToast("No stopped apps to start");
       return;
@@ -454,6 +460,9 @@ function wireEvents() {
     for (const app of stoppedApps) {
       try {
         await invoke("start_app", { name: app.name });
+        if (!state.runningApps.includes(app.name)) {
+          state.runningApps.push(app.name);
+        }
       } catch (error) {
         showToast(`Failed to start ${app.name}`);
       }
@@ -463,27 +472,27 @@ function wireEvents() {
   });
 
   document.querySelector("#stop-all")?.addEventListener("click", async () => {
-    if (!state.running) {
+    if (!state.runningApps.length) {
       showToast("No running apps");
       return;
     }
     setStatus("Stopping all apps...");
-    try {
-      await invoke("stop_app", { name: state.running.name });
-      showToast("Stopped all apps");
-      loadApps();
-      switchView("apps");
-    } catch (error) {
-      setStatus("Stop failed", true);
-      showToast(String(error));
+    for (const name of state.runningApps) {
+      try {
+        await invoke("stop_app", { name });
+      } catch (error) {
+        showToast(`Failed to stop ${name}`);
+      }
     }
+    state.runningApps = [];
+    showToast("Stopped all apps");
+    loadApps();
+    switchView("apps");
   });
 
   const appNameLink = document.getElementById("run-app-name-link");
   appNameLink?.addEventListener("click", () => {
-    if (state.running) {
-      showAppDetails(state.running);
-    }
+    switchView("apps");
   });
 
   const toggleSettingsBtn = document.getElementById("toggle-settings");
@@ -498,14 +507,17 @@ function wireEvents() {
   });
 
   openRunning?.addEventListener("click", () => {
-    if (state.running) {
-      openLocalFallback(state.running.url);
+    const firstRunning = state.apps.find(app => state.runningApps.includes(app.name));
+    if (firstRunning) {
+      openLocalFallback(firstRunning.url);
     }
   });
 
   restartRunning?.addEventListener("click", async () => {
-    if (!state.running) return;
-    await handleAppAction("restart", state.running.name);
+    const firstRunning = state.apps.find(app => state.runningApps.includes(app.name));
+    if (firstRunning) {
+      await handleAppAction("restart", firstRunning.name);
+    }
   });
 
   openLocal?.addEventListener("click", async () => {
@@ -513,19 +525,23 @@ function wireEvents() {
   });
 
   stopRunning?.addEventListener("click", async () => {
-    if (!state.running) return;
-    await handleAppAction("stop", state.running.name);
+    const firstRunning = state.apps.find(app => state.runningApps.includes(app.name));
+    if (firstRunning) {
+      await handleAppAction("stop", firstRunning.name);
+    }
     switchView("apps");
   });
 
   shareRunning?.addEventListener("click", async () => {
-    if (!state.running) return;
-    const url = state.running.url;
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(url);
-      showToast("Link copied");
-    } else {
-      showToast(url);
+    const firstRunning = state.apps.find(app => state.runningApps.includes(app.name));
+    if (firstRunning) {
+      const url = firstRunning.url;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        showToast("Link copied");
+      } else {
+        showToast(url);
+      }
     }
   });
 

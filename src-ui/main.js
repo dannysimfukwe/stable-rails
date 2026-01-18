@@ -256,10 +256,16 @@ function showRunView(app) {
 
 async function handleAppAction(action, name) {
   if (action === "remove") {
-    const confirmDelete = window.confirm(
-      `Remove ${name}? This deletes the folder from ${appsFolder?.textContent || "~/.stable_apps"}.`
-    );
-    if (!confirmDelete) return;
+    try {
+      const confirmed = await invoke("confirm_dialog", {
+        title: "Remove App",
+        message: `Remove ${name}? This deletes the folder from ~/.stable_apps.`
+      });
+      if (!confirmed) return;
+    } catch (error) {
+      showToast(`Confirm error: ${error}`);
+      return;
+    }
   }
 
   if (action === "open") {
@@ -281,7 +287,6 @@ async function handleAppAction(action, name) {
   const command = actionMap[action];
   if (!command) return;
 
-  showToast(`Calling ${command} for ${name}`);
   setStatus(`${action} in progress...`);
   try {
     await invoke(command, { name });
@@ -308,7 +313,7 @@ async function handleAppAction(action, name) {
     }
   } catch (error) {
     setStatus(`${action} failed`, true);
-    showToast(String(error));
+    showToast(`${action} failed: ${String(error)}`);
   }
 }
 

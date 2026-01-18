@@ -39,7 +39,6 @@ fn add_app(folder: String) -> Result<(), String> {
 
 #[tauri::command]
 fn remove_app(name: String) -> Result<(), String> {
-    eprintln!("DEBUG remove_app called with name: {}", name);
     stable::remove::run(&name).map_err(|err| err.to_string())
 }
 
@@ -121,12 +120,22 @@ fn open_folder(path: String) -> Result<(), String> {
 
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
-    eprintln!("DEBUG open_url called with: {}", url);
     std::process::Command::new("open")
         .arg(&url)
         .spawn()
         .map_err(|err| err.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+async fn confirm_dialog(
+    window: tauri::Window,
+    title: String,
+    message: String,
+) -> Result<bool, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let dialog = window.dialog();
+    Ok(dialog.message(message).title(title).blocking_show())
 }
 
 fn open_main_window(app: &AppHandle) {
@@ -140,6 +149,7 @@ fn open_main_window(app: &AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let handle = app.handle();
             let show_item = MenuItem::new(app, "Show Stable", true, None::<&str>)?;
@@ -189,7 +199,8 @@ pub fn run() {
             doctor,
             apps_folder,
             open_folder,
-            open_url
+            open_url,
+            confirm_dialog
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

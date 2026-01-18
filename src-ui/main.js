@@ -2,34 +2,13 @@ const { invoke } = window.__TAURI__.core;
 const { open } = window.__TAURI__.opener;
 const { listen } = window.__TAURI__.event;
 
-const appsGrid = document.querySelector("#apps-grid");
-const runView = document.querySelector("#run-view");
-const runAppName = document.querySelector("#run-app-name");
-const runAppUrl = document.querySelector("#run-app-url");
-const runUptime = document.querySelector("#run-uptime");
-const runNote = document.querySelector("#run-note");
-const backToApps = document.querySelector("#back-to-apps");
-const openRunning = document.querySelector("#open-running");
-const openLocal = document.querySelector("#open-local");
-const restartRunning = document.querySelector("#restart-running");
-const stopRunning = document.querySelector("#stop-running");
-const shareRunning = document.querySelector("#share-running");
-const doctorOutput = document.querySelector("#doctor-output");
-const statusText = document.querySelector(".status-text");
-const appsFolder = document.querySelector("#apps-folder");
-const addAppSubmit = document.querySelector("#add-app-submit");
-const newAppSubmit = document.querySelector("#new-app-submit");
-const activityPanel = document.querySelector("#activity-panel");
-const activityStatus = document.querySelector("#activity-status");
-const activityLog = document.querySelector("#activity-log");
+let appsGrid, runView, runAppName, runAppUrl, runUptime, runNote;
+let backToApps, openRunning, openLocal, restartRunning, stopRunning, shareRunning;
+let doctorOutput, statusText, appsFolder, addAppSubmit, newAppSubmit;
+let activityPanel, activityStatus, activityLog;
 
-const views = {
-  apps: document.querySelector("#apps-view"),
-  doctor: document.querySelector("#doctor-view"),
-  run: runView,
-};
-
-const navButtons = document.querySelectorAll(".nav-item");
+const views = {};
+const navButtons = [];
 
 const state = {
   apps: [],
@@ -39,6 +18,7 @@ const state = {
 };
 
 function setStatus(message, isError = false) {
+  if (!statusText) statusText = document.querySelector(".status-text");
   if (!statusText) return;
   statusText.textContent = message;
   statusText.parentElement.style.background = isError
@@ -55,13 +35,19 @@ function showToast(message) {
 }
 
 function resetActivity(message = "Idle") {
+  if (!activityPanel) activityPanel = document.querySelector("#activity-panel");
   if (!activityPanel) return;
+  if (!activityStatus) activityStatus = document.querySelector("#activity-status");
+  if (!activityStatus) return;
   activityStatus.textContent = message;
   activityPanel.classList.remove("is-busy");
 }
 
 function appendLog(line) {
+  if (!activityPanel) activityPanel = document.querySelector("#activity-panel");
   if (!activityPanel) return;
+  if (!activityLog) activityLog = document.querySelector("#activity-log");
+  if (!activityLog) return;
   if (activityLog.textContent === "Logs will appear here.") {
     activityLog.textContent = "";
   }
@@ -70,16 +56,25 @@ function appendLog(line) {
 }
 
 function switchView(view) {
+  if (!views.apps) {
+    views.apps = document.querySelector("#apps-view");
+    views.doctor = document.querySelector("#doctor-view");
+    views.run = document.querySelector("#run-view");
+  }
   Object.keys(views).forEach((key) => {
     views[key].classList.toggle("is-hidden", key !== view);
   });
 
-  navButtons.forEach((button) => {
+  const btns = document.querySelectorAll(".nav-item");
+  btns.forEach((button) => {
     button.classList.toggle("is-active", button.dataset.view === view);
   });
 }
 
 function renderApps(apps) {
+  if (!appsGrid) {
+    appsGrid = document.querySelector("#apps-grid");
+  }
   if (!appsGrid) return;
   if (!apps.length) {
     appsGrid.innerHTML = `
@@ -263,6 +258,9 @@ function showRunView(app) {
 
 async function openUrl(url) {
   try {
+    if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("file://")) {
+      url = `file://${url}`;
+    }
     await open(url);
   } catch (error) {
     try {
@@ -328,15 +326,41 @@ async function handleAppAction(action, name) {
 }
 
 function wireEvents() {
-  navButtons.forEach((button) => {
+  appsGrid = document.querySelector("#apps-grid");
+  runView = document.querySelector("#run-view");
+  runAppName = document.querySelector("#run-app-name");
+  runAppUrl = document.querySelector("#run-app-url");
+  runUptime = document.querySelector("#run-uptime");
+  runNote = document.querySelector("#run-note");
+  backToApps = document.querySelector("#back-to-apps");
+  openRunning = document.querySelector("#open-running");
+  openLocal = document.querySelector("#open-local");
+  restartRunning = document.querySelector("#restart-running");
+  stopRunning = document.querySelector("#stop-running");
+  shareRunning = document.querySelector("#share-running");
+  doctorOutput = document.querySelector("#doctor-output");
+  statusText = document.querySelector(".status-text");
+  appsFolder = document.querySelector("#apps-folder");
+  addAppSubmit = document.querySelector("#add-app-submit");
+  newAppSubmit = document.querySelector("#new-app-submit");
+  activityPanel = document.querySelector("#activity-panel");
+  activityStatus = document.querySelector("#activity-status");
+  activityLog = document.querySelector("#activity-log");
+
+  views.apps = document.querySelector("#apps-view");
+  views.doctor = document.querySelector("#doctor-view");
+  views.run = runView;
+
+  const navItems = document.querySelectorAll(".nav-item");
+  navItems.forEach((button) => {
     button.addEventListener("click", () => switchView(button.dataset.view));
   });
 
   document
     .querySelector("#refresh-apps")
     .addEventListener("click", loadApps);
-  document.querySelector("#run-doctor").addEventListener("click", runDoctor);
-  document.querySelector("#add-app").addEventListener("click", () => {
+  document.querySelector("#run-doctor")?.addEventListener("click", runDoctor);
+  document.querySelector("#add-app")?.addEventListener("click", () => {
     const input = document.querySelector("#existing-app-path");
     if (input?.value?.trim()) {
       addApp();
@@ -344,7 +368,7 @@ function wireEvents() {
       input?.focus();
     }
   });
-  document.querySelector("#new-app").addEventListener("click", () => {
+  document.querySelector("#new-app")?.addEventListener("click", () => {
     const input = document.querySelector("#new-app-name");
     if (input?.value?.trim()) {
       newApp();
@@ -379,6 +403,41 @@ function wireEvents() {
         showToast(String(error));
       }
     });
+
+  document.querySelector("#start-all")?.addEventListener("click", async () => {
+    const stoppedApps = state.apps.filter(app => state.running?.name !== app.name);
+    if (!stoppedApps.length) {
+      showToast("No stopped apps to start");
+      return;
+    }
+    setStatus("Starting all apps...");
+    for (const app of stoppedApps) {
+      try {
+        await invoke("start_app", { name: app.name });
+      } catch (error) {
+        showToast(`Failed to start ${app.name}`);
+      }
+    }
+    showToast("Started all apps");
+    loadApps();
+  });
+
+  document.querySelector("#stop-all")?.addEventListener("click", async () => {
+    if (!state.running) {
+      showToast("No running apps");
+      return;
+    }
+    setStatus("Stopping all apps...");
+    try {
+      await invoke("stop_app", { name: state.running.name });
+      showToast("Stopped all apps");
+      loadApps();
+      switchView("apps");
+    } catch (error) {
+      setStatus("Stop failed", true);
+      showToast(String(error));
+    }
+  });
 
   backToApps?.addEventListener("click", () => {
     switchView("apps");
@@ -424,15 +483,18 @@ function wireEvents() {
     });
   }
 
-  appsFolder.textContent = "~/.stable_apps";
+  if (appsFolder) {
+    appsFolder.textContent = "~/.stable_apps";
+  }
 }
 
 async function loadAppsFolder() {
+  if (!appsFolder) appsFolder = document.querySelector("#apps-folder");
   try {
     const folder = await invoke("apps_folder");
-    appsFolder.textContent = folder;
+    if (appsFolder) appsFolder.textContent = folder;
   } catch (error) {
-    appsFolder.textContent = "~/.stable_apps";
+    if (appsFolder) appsFolder.textContent = "~/.stable_apps";
   }
 }
 

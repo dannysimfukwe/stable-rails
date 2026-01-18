@@ -34,6 +34,7 @@
           </button>
         </nav>
         <div class="sidebar-footer">
+          <div class="app-version">v0.1.0</div>
           <div class="status-pill" id="system-status">
             <span class="status-dot"></span>
             <span class="status-text">Ready</span>
@@ -43,30 +44,39 @@
       </aside>
       <main class="main">
         <header class="hero">
-          <div>
-            <p class="eyebrow">Stable Desktop</p>
-            <h2>Run Rails apps like a pro, without the fuss.</h2>
-            <p class="subtitle">
-              Manage local Rails apps, TLS, and routing with a single command
-              center. Everything stays local and fast.
-            </p>
-          </div>
-          <div class="hero-card">
-            <h3>Quick actions</h3>
-            <div class="hero-actions">
-              <button class="primary" id="refresh-apps">Refresh apps</button>
-              <button class="ghost" id="open-folder">Open apps folder</button>
+          <div class="hero-left">
+            <div class="global-actions">
+              <button class="action-btn" id="start-all" title="Start all apps">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+                <span>Start All</span>
+              </button>
+              <button class="action-btn danger" id="stop-all" title="Stop all apps">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12"/>
+                </svg>
+                <span>Stop All</span>
+              </button>
             </div>
-            <p class="hero-note">Default folder: <span id="apps-folder"></span></p>
+          </div>
+          <div class="hero-actions">
+            <button class="icon-btn" id="refresh-apps" title="Refresh apps">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+              </svg>
+            </button>
+            <button class="icon-btn" id="open-folder" title="Open apps folder">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+              </svg>
+            </button>
           </div>
         </header>
 
         <section class="view" id="apps-view">
           <div class="section-header">
-            <div>
-              <h3>Your apps</h3>
-              <p>Start, stop, or remove any Rails workspace.</p>
-            </div>
+            <h3>Your apps</h3>
             <div class="actions">
               <button class="ghost" id="add-app">Add existing</button>
               <button class="primary" id="new-app">New Rails app</button>

@@ -65,6 +65,7 @@ fn create_app(window: tauri::Window, name: String) -> Result<(), String> {
             },
         );
     };
+    let log_window2 = log_window.clone();
     let log = move |line: &str| {
         let _ = log_window.emit(
             "stable:log",
@@ -74,7 +75,18 @@ fn create_app(window: tauri::Window, name: String) -> Result<(), String> {
         );
     };
 
-    stable::new::run_with_progress(&name, progress, log).map_err(|err| err.to_string())
+    std::thread::spawn(move || {
+        if let Err(err) = stable::new::run_with_progress(&name, progress, log) {
+            let _ = log_window2.emit(
+                "stable:log",
+                LogEvent {
+                    line: format!("ERROR: {}", err),
+                },
+            );
+        }
+    });
+
+    Ok(())
 }
 
 #[tauri::command]

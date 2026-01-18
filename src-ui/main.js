@@ -114,7 +114,7 @@ function renderApps(apps) {
           ${apps.map(app => `
             <tr>
               <td>
-                <span class="app-name">${app.name}</span>
+                <button type="button" class="app-name-link" data-action="details" data-app="${app.name}">${app.name}</button>
               </td>
               <td>
                 <button type="button" class="link" data-action="open" data-app="${app.name}">${app.url}</button>
@@ -219,17 +219,13 @@ async function newApp() {
     activityPanel.classList.add("is-busy");
   }
   appendLog("Initializing create...");
+  startAppCreationChecker();
   try {
     await invoke("create_app", { name });
     input.value = "";
-    showToast("Rails app created");
-    loadApps();
-    appendLog("Create complete.");
-    if (activityPanel) {
-      activityStatus.textContent = "Complete";
-      activityPanel.classList.remove("is-busy");
-    }
+    showToast("App creation started in background");
   } catch (error) {
+    stopAppCreationChecker();
     setStatus("Create failed", true);
     if (activityPanel) {
       activityStatus.textContent = "Create failed";
@@ -237,6 +233,22 @@ async function newApp() {
     }
     appendLog(`ERROR: ${error}`);
     showToast(String(error));
+  }
+}
+
+let appCreationCheckInterval = null;
+
+function startAppCreationChecker() {
+  if (appCreationCheckInterval) return;
+  appCreationCheckInterval = setInterval(() => {
+    loadApps();
+  }, 2000);
+}
+
+function stopAppCreationChecker() {
+  if (appCreationCheckInterval) {
+    clearInterval(appCreationCheckInterval);
+    appCreationCheckInterval = null;
   }
 }
 
@@ -259,9 +271,10 @@ function showRunView(app) {
     ...app,
     startedAt: Date.now(),
   };
-  runAppName.textContent = app.name;
+  const appNameLink = document.getElementById("run-app-name-link");
+  if (appNameLink) appNameLink.textContent = app.name;
   runAppUrl.textContent = app.url;
-  runNote.textContent = "Caddy serves https with local TLS.";
+  runNote.textContent = "Your app is served via Caddy with TLS.";
   runUptime.textContent = formatUptime(state.running.startedAt);
   if (state.uptimeTimer) {
     clearInterval(state.uptimeTimer);
@@ -269,6 +282,16 @@ function showRunView(app) {
   state.uptimeTimer = setInterval(() => {
     runUptime.textContent = formatUptime(state.running.startedAt);
   }, 1000);
+  switchView("run");
+}
+
+function showAppDetails(app) {
+  state.running = app;
+  const appNameLink = document.getElementById("run-app-name-link");
+  if (appNameLink) appNameLink.textContent = app.name;
+  runAppUrl.textContent = app.url;
+  runNote.textContent = "Configure your app settings below.";
+  runUptime.textContent = "Not running";
   switchView("run");
 }
 
@@ -291,6 +314,14 @@ async function handleAppAction(action, name) {
     if (app) {
       showToast(`Opening ${app.url}...`);
       await invoke("open_url", { url: app.url });
+    }
+    return;
+  }
+
+  if (action === "details") {
+    const app = state.apps.find((entry) => entry.name === name);
+    if (app) {
+      showAppDetails(app);
     }
     return;
   }
@@ -448,6 +479,20 @@ function wireEvents() {
     }
   });
 
+  const appNameLink = document.getElementById("run-app-name-link");
+  appNameLink?.addEventListener("click", () => {
+    if (state.running) {
+      showAppDetails(state.running);
+    }
+  });
+
+  const toggleSettingsBtn = document.getElementById("toggle-settings");
+  const settingsPanel = document.getElementById("settings-panel");
+  toggleSettingsBtn?.addEventListener("click", () => {
+    settingsPanel?.classList.toggle("is-hidden");
+    toggleSettingsBtn.textContent = settingsPanel?.classList.contains("is-hidden") ? "Expand" : "Collapse";
+  });
+
   backToApps?.addEventListener("click", () => {
     switchView("apps");
   });
@@ -527,5 +572,22 @@ window.addEventListener("DOMContentLoaded", () => {
 
   listen("stable:log", (event) => {
     appendLog(event.payload.line);
+    const line = event.payload.line;
+    if (line.includes("Stable app ready") || line.includes("Create complete") || line.includes("App domain:")) {
+      stopAppCreationChecker();
+      if (activityStatus) {
+        activityStatus.textContent = "Complete";
+      }
+      activityPanel?.classList.remove("is-busy");
+      loadApps();
+      showToast("App created successfully!");
+    }
+    if (line.includes("ERROR:")) {
+      stopAppCreationChecker();
+      if (activityStatus) {
+        activityStatus.textContent = "Create failed";
+      }
+      activityPanel?.classList.remove("is-busy");
+    }
   });
 });

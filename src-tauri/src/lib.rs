@@ -39,6 +39,7 @@ fn add_app(folder: String) -> Result<(), String> {
 
 #[tauri::command]
 fn remove_app(name: String) -> Result<(), String> {
+    eprintln!("DEBUG remove_app called with name: {}", name);
     stable::remove::run(&name).map_err(|err| err.to_string())
 }
 
@@ -109,6 +110,25 @@ fn apps_folder() -> Result<String, String> {
     Ok(stable::utils::apps_folder().to_string_lossy().to_string())
 }
 
+#[tauri::command]
+fn open_folder(path: String) -> Result<(), String> {
+    std::process::Command::new("open")
+        .arg(&path)
+        .spawn()
+        .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    eprintln!("DEBUG open_url called with: {}", url);
+    std::process::Command::new("open")
+        .arg(&url)
+        .spawn()
+        .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
 fn open_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -167,7 +187,9 @@ pub fn run() {
             restart_app,
             secure_app,
             doctor,
-            apps_folder
+            apps_folder,
+            open_folder,
+            open_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -20,14 +20,17 @@ pub fn run_command<C: AsRef<str>>(cwd: C, program: &str, args: &[&str]) -> Resul
 /// Load all apps (by folder name)
 pub fn load_apps() -> Result<Vec<String>> {
     let folder = apps_folder();
+    eprintln!("DEBUG load_apps: folder = {:?}", folder);
     if !folder.exists() {
+        eprintln!("DEBUG load_apps: folder doesn't exist, creating...");
         fs::create_dir_all(&folder)?;
     }
-    let apps = fs::read_dir(&folder)?
+    let apps: Vec<String> = fs::read_dir(&folder)?
         .filter_map(|entry| entry.ok())
         .filter(|e| e.path().is_dir())
         .map(|e| e.file_name().to_string_lossy().to_string())
         .collect();
+    eprintln!("DEBUG load_apps: found {} apps: {:?}", apps.len(), apps);
     Ok(apps)
 }
 

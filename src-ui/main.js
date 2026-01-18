@@ -141,12 +141,30 @@ function renderApps(apps) {
   `;
 }
 
+function updateButtonStates() {
+  const startAllBtn = document.querySelector("#start-all");
+  const stopAllBtn = document.querySelector("#stop-all");
+  const hasApps = state.apps.length > 0;
+  const hasStoppedApps = state.apps.some(app => state.running?.name !== app.name);
+  const hasRunningApp = state.running !== null;
+
+  if (startAllBtn) {
+    startAllBtn.disabled = !hasApps || !hasStoppedApps;
+    startAllBtn.style.opacity = (!hasApps || !hasStoppedApps) ? "0.5" : "1";
+  }
+  if (stopAllBtn) {
+    stopAllBtn.disabled = !hasRunningApp;
+    stopAllBtn.style.opacity = !hasRunningApp ? "0.5" : "1";
+  }
+}
+
 async function loadApps() {
   setStatus("Syncing apps...");
   try {
     const apps = await invoke("list_apps");
     state.apps = apps;
     renderApps(apps);
+    updateButtonStates();
     setStatus("Ready");
   } catch (error) {
     setStatus("Error loading apps", true);

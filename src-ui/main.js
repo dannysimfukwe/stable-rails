@@ -83,34 +83,69 @@ function renderApps(apps) {
   if (!appsGrid) return;
   if (!apps.length) {
     appsGrid.innerHTML = `
-      <div class="app-card">
-        <h4>No apps yet</h4>
-        <p>Create a new Rails app or add an existing folder.</p>
+      <div class="apps-table-container">
+        <table class="apps-table">
+          <thead>
+            <tr>
+              <th>App</th>
+              <th>Domain</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="4" style="text-align:center;padding:32px;color:var(--ink-soft);">
+                No apps yet. Create a new Rails app or add an existing folder.
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     `;
     return;
   }
 
-  appsGrid.innerHTML = apps
-    .map(
-      (app) => `
-      <article class="app-card">
-        <div>
-          <h4>${app.name}</h4>
-          <button type="button" class="link" data-action="open" data-app="${app.name}">${app.url}</button>
-        </div>
-        <span class="pill">TLS ready</span>
-        <div class="card-actions">
-          <button class="ghost" data-action="open" data-app="${app.name}">Open</button>
-          <button class="primary" data-action="start" data-app="${app.name}">Start</button>
-          <button class="ghost" data-action="stop" data-app="${app.name}">Stop</button>
-          <button class="ghost" data-action="restart" data-app="${app.name}">Restart</button>
-          <button class="danger" data-action="remove" data-app="${app.name}">Remove</button>
-        </div>
-      </article>
-    `
-    )
-    .join("");
+  appsGrid.innerHTML = `
+    <div class="apps-table-container">
+      <table class="apps-table">
+        <thead>
+          <tr>
+            <th>App</th>
+            <th>Domain</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${apps.map(app => `
+            <tr>
+              <td>
+                <span class="app-name">${app.name}</span>
+              </td>
+              <td>
+                <button type="button" class="link" data-action="open" data-app="${app.name}">${app.url}</button>
+              </td>
+              <td>
+                <span class="status-badge ${state.running?.name === app.name ? 'running' : ''}">
+                  ${state.running?.name === app.name ? 'Running' : 'Stopped'}
+                </span>
+              </td>
+              <td class="actions-cell">
+                <div class="actions-row">
+                  <button type="button" class="btn-action btn-open" data-action="open" data-app="${app.name}">Open</button>
+                  <button type="button" class="btn-action btn-start" data-action="start" data-app="${app.name}">Start</button>
+                  <button type="button" class="btn-action btn-stop" data-action="stop" data-app="${app.name}">Stop</button>
+                  <button type="button" class="btn-action btn-restart" data-action="restart" data-app="${app.name}">Restart</button>
+                  <button type="button" class="btn-action btn-remove" data-action="remove" data-app="${app.name}">Remove</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 async function loadApps() {

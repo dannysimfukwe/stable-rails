@@ -628,3 +628,190 @@ pre {
     flex-wrap: wrap;
   }
 }
+
+/* Apps Table Styles */
+.apps-table-container {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 16px;
+}
+
+.apps-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "IBM Plex Sans", "SF Pro Text", sans-serif;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.apps-table thead {
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(8px);
+}
+
+.apps-table th {
+  padding: 14px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--border);
+}
+
+.apps-table td {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.apps-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.apps-table tbody tr:hover {
+  background: rgba(15, 23, 42, 0.15);
+}
+
+.apps-table .app-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.apps-table .link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: #3b82f6;
+  font-size: 13px;
+  font-family: "IBM Plex Mono", "SF Mono", monospace;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.apps-table .link:hover {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
+.apps-table .status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(15, 23, 42, 0.4);
+  color: var(--ink-soft);
+}
+
+.apps-table .status-badge.running {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.apps-table .actions-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.apps-table .actions-row {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.apps-table .btn-action {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.apps-table .btn-open {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.apps-table .btn-open:hover {
+  background: #2563eb;
+}
+
+.apps-table .btn-start {
+  background: rgba(15, 23, 42, 0.3);
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+.apps-table .btn-start:hover {
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.apps-table .btn-stop {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.apps-table .btn-stop:hover {
+  background: rgba(248, 113, 113, 0.3);
+}
+
+.apps-table .btn-restart {
+  background: rgba(249, 115, 22, 0.2);
+  color: #f97316;
+  border-color: rgba(249, 115, 22, 0.3);
+}
+
+.apps-table .btn-restart:hover {
+  background: rgba(249, 115, 22, 0.3);
+}
+
+.apps-table .btn-remove {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.apps-table .btn-remove:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* Responsive table */
+@media (max-width: 980px) {
+  .apps-table th,
+  .apps-table td {
+    padding: 12px;
+  }
+
+  .apps-table .btn-action {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .apps-table .actions-row {
+    gap: 6px;
+  }
+}
+
+@media (max-width: 720px) {
+  .apps-table-container {
+    margin-left: -16px;
+    margin-right: -16px;
+    padding-left: 16px;
+    padding-right: 16px;
+    overflow-x: auto;
+  }
+
+  .apps-table th:nth-child(2),
+  .apps-table td:nth-child(2) {
+    min-width: 140px;
+  }
+}

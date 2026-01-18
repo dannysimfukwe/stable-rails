@@ -131,14 +131,9 @@ body {
 
 .sidebar-footer {
   margin-top: auto;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-}
-
-.app-version {
-  font-size: 11px;
-  color: rgba(248, 250, 252, 0.5);
-  font-family: "IBM Plex Mono", "SF Mono", monospace;
 }
 
 .status-pill {
@@ -157,6 +152,25 @@ body {
   border-radius: 50%;
   background: var(--success);
   box-shadow: 0 0 8px rgba(30, 158, 119, 0.8);
+}
+
+.status-text {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.status-caption {
+  font-size: 11px;
+  color: rgba(248, 250, 252, 0.4);
+  margin: 0;
+}
+
+.app-version {
+  font-size: 10px;
+  color: rgba(248, 250, 252, 0.3);
+  font-family: "IBM Plex Mono", "SF Mono", monospace;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .status-caption {
@@ -242,6 +256,12 @@ body {
   background: rgba(248, 113, 113, 0.25);
   border-color: rgba(248, 113, 113, 0.5);
   color: #fca5a5;
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .hero-actions {

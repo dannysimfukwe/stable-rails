@@ -259,10 +259,17 @@ pub fn update_global_caddyfile() -> Result<()> {
 
     std::fs::write(&global_caddyfile, content)?;
 
-    let _ = run_shell(
+    let reload_result = run_shell(
         &apps_folder(),
         &format!("caddy reload --config '{}'", global_caddyfile.display()),
     );
+
+    if reload_result.is_err() {
+        let _ = run_shell(
+            &apps_folder(),
+            &format!("caddy start --config '{}'", global_caddyfile.display()),
+        );
+    }
 
     Ok(())
 }

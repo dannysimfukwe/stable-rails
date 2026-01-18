@@ -1,6 +1,5 @@
-use crate::stable::utils::{
-    apps_folder, ensure_hosts_entry, run_shell, run_shell_spawn, shell_escape,
-};
+use crate::stable::config::{apps_folder, load_all_app_configs, load_app_config};
+use crate::stable::utils::{ensure_hosts_entry, run_shell, run_shell_spawn};
 use anyhow::Result;
 use std::fs;
 
@@ -16,6 +15,9 @@ pub fn run(app_name: &str) -> Result<()> {
         anyhow::bail!("Missing bin/rails in {}", app_path.display());
     }
 
+    let config = load_app_config(app_name)?;
+    let port = config.port;
+
     let domain = format!("{}.test", app_name);
     let hosts_added = ensure_hosts_entry(&domain)?;
     if !hosts_added {
@@ -29,13 +31,26 @@ pub fn run(app_name: &str) -> Result<()> {
         }
     }
 
-    run_shell_spawn(&app_path, "./bin/rails server")?;
+    run_shell_spawn(&app_path, &format!("./bin/rails server -p {}", port))?;
 
-    let caddyfile_path = app_path.join("Caddyfile");
-    if !caddyfile_path.exists() {
-        let cert_path = app_path.join("cert.pem");
-        let key_path = app_path.join("key.pem");
-        let mut content = format!("{}.test {{\n", app_name);
+    update_global_caddyfile()?;
+
+    Ok(())
+}
+
+fn update_global_caddyfile() -> Result<()> {
+    let global_caddyfile = apps_folder().join("Caddyfile");
+    let mut content = String::new();
+
+    let all_configs = load_all_app_configs()?;
+
+    for config in all_configs {
+        let domain = format!("{}.test", config.name);
+        let cert_path = apps_folder().join(&config.name).join("cert.pem");
+        let key_path = apps_folder().join(&config.name).join("key.pem");
+
+        content.push_str(&format!("{} {{\n", domain));
+
         if cert_path.exists() && key_path.exists() {
             content.push_str(&format!(
                 "    tls {} {}\n",
@@ -45,26 +60,25 @@ pub fn run(app_name: &str) -> Result<()> {
         } else {
             content.push_str("    tls internal\n");
         }
-        content.push_str("    reverse_proxy 127.0.0.1:3000\n}\n");
-        fs::write(&caddyfile_path, content)?;
+        content.push_str(&format!(
+            "    reverse_proxy 127.0.0.1:{}\n}}\n",
+            config.port
+        ));
     }
 
-    let caddy_path = shell_escape(&caddyfile_path.to_string_lossy());
-    let status = run_shell(
-        &app_path,
-        &format!("caddy reload --config '{}'", caddy_path),
-    )
-    .map_err(|err| anyhow::anyhow!("Failed to run caddy: {}", err))?;
+    fs::write(&global_caddyfile, content)?;
 
-    if !status.success() {
-        let caddy_start = run_shell(&app_path, &format!("caddy start --config '{}'", caddy_path));
-        if let Ok(start_status) = caddy_start {
-            if !start_status.success() {
-                println!("Warning: Caddy reload/start failed, check Caddy logs");
-            }
-        } else {
-            println!("Warning: Caddy reload/start failed, check Caddy logs");
-        }
+    let status = run_shell(
+        &apps_folder(),
+        &format!("caddy reload --config '{}'", global_caddyfile.display()),
+    );
+
+    if let Err(err) = status {
+        let _ = run_shell(
+            &apps_folder(),
+            &format!("caddy start --config '{}'", global_caddyfile.display()),
+        )
+        .map_err(|e| println!("Caddy start warning: {}", e));
     }
 
     Ok(())

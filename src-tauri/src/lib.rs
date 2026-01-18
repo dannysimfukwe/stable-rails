@@ -135,6 +135,13 @@ async fn confirm_dialog(
     Ok(dialog.message(message).title(title).blocking_show())
 }
 
+#[tauri::command]
+async fn pick_folder(_window: tauri::Window, title: String) -> Result<Option<String>, String> {
+    let result = rfd::AsyncFileDialog::new().set_title(&title).pick_folder();
+    let path = result.await.map(|p| p.path().to_string_lossy().to_string());
+    Ok(path)
+}
+
 fn open_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -197,7 +204,8 @@ pub fn run() {
             apps_folder,
             open_folder,
             open_url,
-            confirm_dialog
+            confirm_dialog,
+            pick_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

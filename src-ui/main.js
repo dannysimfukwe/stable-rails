@@ -3,7 +3,7 @@ const { listen } = window.__TAURI__.event;
 
 let appsGrid, runView, runAppName, runAppUrl, runUptime, runNote;
 let backToApps, openRunning, openLocal, restartRunning, stopRunning, shareRunning;
-let doctorOutput, statusText, appsFolder, addAppSubmit, newAppSubmit;
+let doctorOutput, statusText, appsFolder, addAppSubmit, newAppSubmit, addAppBrowse;
 let activityPanel, activityStatus, activityLog;
 
 const views = {};
@@ -186,21 +186,43 @@ async function runDoctor() {
 
 async function addApp() {
   const input = document.querySelector("#existing-app-path");
+  const addBtn = document.querySelector("#add-app-submit");
   if (!input) return;
   const folder = input.value.trim();
   if (!folder) {
-    showToast("Enter a folder path first");
+    showToast("Select a folder first");
     return;
   }
   setStatus("Adding app...");
   try {
     await invoke("add_app", { folder });
     input.value = "";
+    if (addBtn) {
+      addBtn.style.display = "none";
+    }
     showToast("App added");
     loadApps();
   } catch (error) {
     setStatus("Add failed", true);
     showToast(String(error));
+  }
+}
+
+async function browseFolder() {
+  try {
+    const result = await invoke("pick_folder", { title: "Select Rails App Folder" });
+    if (result) {
+      const input = document.querySelector("#existing-app-path");
+      const addBtn = document.querySelector("#add-app-submit");
+      if (input) {
+        input.value = result;
+      }
+      if (addBtn) {
+        addBtn.style.display = "inline-flex";
+      }
+    }
+  } catch (error) {
+    showToast(`Error selecting folder: ${error}`);
   }
 }
 
@@ -390,6 +412,7 @@ function wireEvents() {
   appsFolder = document.querySelector("#apps-folder");
   addAppSubmit = document.querySelector("#add-app-submit");
   newAppSubmit = document.querySelector("#new-app-submit");
+  addAppBrowse = document.querySelector("#add-app-browse");
   activityPanel = document.querySelector("#activity-panel");
   activityStatus = document.querySelector("#activity-status");
   activityLog = document.querySelector("#activity-log");
@@ -408,12 +431,7 @@ function wireEvents() {
     .addEventListener("click", loadApps);
   document.querySelector("#run-doctor")?.addEventListener("click", runDoctor);
   document.querySelector("#add-app")?.addEventListener("click", () => {
-    const input = document.querySelector("#existing-app-path");
-    if (input?.value?.trim()) {
-      addApp();
-    } else {
-      input?.focus();
-    }
+    browseFolder();
   });
   document.querySelector("#new-app")?.addEventListener("click", () => {
     const input = document.querySelector("#new-app-name");
@@ -426,15 +444,13 @@ function wireEvents() {
   if (addAppSubmit) {
     addAppSubmit.addEventListener("click", addApp);
   }
+  if (addAppBrowse) {
+    addAppBrowse.addEventListener("click", browseFolder);
+  }
   if (newAppSubmit) {
     newAppSubmit.addEventListener("click", newApp);
   }
 
-  document.querySelector("#existing-app-path")?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      addApp();
-    }
-  });
   document.querySelector("#new-app-name")?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       newApp();

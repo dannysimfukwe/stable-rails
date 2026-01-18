@@ -29,4 +29,5 @@ chrono = "0.4"
 tauri-plugin-dialog = "2.6.0"
 yaml-rust = "0.4"
 regex = "1"
+rfd = "0.14"
 

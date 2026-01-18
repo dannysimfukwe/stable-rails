@@ -1,7 +1,14 @@
 use anyhow::Result;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::path::Path;
 use sysinfo::{ProcessesToUpdate, System};
+
+fn cmdline_to_string(cmd: &[OsString]) -> String {
+    cmd.iter()
+        .map(|arg| arg.to_string_lossy().to_string())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
 
 pub fn run(app_name: &str) -> Result<()> {
     let app_path = dirs::home_dir()
@@ -16,9 +23,21 @@ pub fn run(app_name: &str) -> Result<()> {
     let mut sys = System::new();
     sys.refresh_processes(ProcessesToUpdate::All, true);
 
-    let app_osstr = OsStr::new(app_name);
+    for process in sys.processes_by_name(OsStr::new("ruby")) {
+        let cmdline = cmdline_to_string(process.cmd());
+        if cmdline.contains(app_name) && cmdline.contains("rails server") {
+            process.kill();
+        }
+    }
 
-    for process in sys.processes_by_name(app_osstr) {
+    for process in sys.processes_by_name(OsStr::new("caddy")) {
+        let cmdline = cmdline_to_string(process.cmd());
+        if cmdline.contains(app_name) {
+            process.kill();
+        }
+    }
+
+    for process in sys.processes_by_name(OsStr::new(app_name)) {
         if let Some(cwd) = process.cwd() {
             if cwd == Path::new(&app_path) {
                 process.kill();

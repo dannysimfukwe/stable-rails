@@ -1,5 +1,4 @@
 const { invoke } = window.__TAURI__.core;
-const { open } = window.__TAURI__.opener;
 const { listen } = window.__TAURI__.event;
 
 let appsGrid, runView, runAppName, runAppUrl, runUptime, runNote;
@@ -8,7 +7,6 @@ let doctorOutput, statusText, appsFolder, addAppSubmit, newAppSubmit;
 let activityPanel, activityStatus, activityLog;
 
 const views = {};
-const navButtons = [];
 
 const state = {
   apps: [],
@@ -256,50 +254,35 @@ function showRunView(app) {
   switchView("run");
 }
 
-async function openUrl(url) {
-  try {
-    if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("file://")) {
-      url = `file://${url}`;
-    }
-    await open(url);
-  } catch (error) {
-    try {
-      window.open(url, "_blank");
-    } catch (fallbackError) {
-      showToast(`Unable to open ${url}`);
-    }
-  }
-}
-
-async function openLocalFallback(url) {
-  await openUrl(url);
-  if (url.startsWith("https://")) {
-    await openUrl("http://127.0.0.1:3000");
-  }
-}
-
 async function handleAppAction(action, name) {
+  if (action === "remove") {
+    try {
+      const confirmed = await invoke("confirm_dialog", {
+        title: "Remove App",
+        message: `Remove ${name}? This deletes the folder from ~/.stable_apps.`
+      });
+      if (!confirmed) return;
+    } catch (error) {
+      showToast(`Confirm error: ${error}`);
+      return;
+    }
+  }
+
+  if (action === "open") {
+    const app = state.apps.find((entry) => entry.name === name);
+    if (app) {
+      showToast(`Opening ${app.url}...`);
+      await invoke("open_url", { url: app.url });
+    }
+    return;
+  }
+
   const actionMap = {
     start: "start_app",
     stop: "stop_app",
     restart: "restart_app",
     remove: "remove_app",
   };
-
-  if (action === "remove") {
-    const confirmDelete = window.confirm(
-      `Remove ${name}? This deletes the folder from ${appsFolder.textContent || "~/.stable_apps"}.`
-    );
-    if (!confirmDelete) return;
-  }
-
-  if (action === "open") {
-    const app = state.apps.find((entry) => entry.name === name);
-    if (app) {
-      await openLocalFallback(app.url);
-    }
-    return;
-  }
 
   const command = actionMap[action];
   if (!command) return;
@@ -308,20 +291,29 @@ async function handleAppAction(action, name) {
   try {
     await invoke(command, { name });
     showToast(`${name} ${action}ed`);
-      if (action === "start") {
+
+    if (action === "start") {
       const app = state.apps.find((entry) => entry.name === name);
       if (app) {
+        state.running = { name: app.name };
+        loadApps();
         showRunView(app);
       }
-    }
-    if (action !== "stop") {
+    } else if (action === "stop") {
+      state.running = null;
       loadApps();
-    } else {
+      switchView("apps");
       setStatus("Ready");
+    } else if (action === "remove") {
+      state.running = null;
+      loadApps();
+      setStatus("Ready");
+    } else {
+      loadApps();
     }
   } catch (error) {
     setStatus(`${action} failed`, true);
-    showToast(String(error));
+    showToast(`${action} failed: ${String(error)}`);
   }
 }
 
@@ -393,16 +385,15 @@ function wireEvents() {
       newApp();
     }
   });
-  document
-    .querySelector("#open-folder")
-    .addEventListener("click", async () => {
-      try {
-        const folder = await invoke("apps_folder");
-        await openUrl(folder);
-      } catch (error) {
-        showToast(String(error));
-      }
-    });
+
+  document.querySelector("#open-folder")?.addEventListener("click", async () => {
+    try {
+      const folder = await invoke("apps_folder");
+      await invoke("open_folder", { path: folder });
+    } catch (error) {
+      showToast(String(error));
+    }
+  });
 
   document.querySelector("#start-all")?.addEventListener("click", async () => {
     const stoppedApps = state.apps.filter(app => state.running?.name !== app.name);

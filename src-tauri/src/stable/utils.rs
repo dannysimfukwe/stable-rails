@@ -23,7 +23,7 @@ pub fn load_apps() -> Result<Vec<String>> {
     if !folder.exists() {
         fs::create_dir_all(&folder)?;
     }
-    let apps = fs::read_dir(&folder)?
+    let apps: Vec<String> = fs::read_dir(&folder)?
         .filter_map(|entry| entry.ok())
         .filter(|e| e.path().is_dir())
         .map(|e| e.file_name().to_string_lossy().to_string())

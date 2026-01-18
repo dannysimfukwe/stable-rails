@@ -109,6 +109,35 @@ fn apps_folder() -> Result<String, String> {
     Ok(stable::utils::apps_folder().to_string_lossy().to_string())
 }
 
+#[tauri::command]
+fn open_folder(path: String) -> Result<(), String> {
+    std::process::Command::new("open")
+        .arg(&path)
+        .spawn()
+        .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    std::process::Command::new("open")
+        .arg(&url)
+        .spawn()
+        .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn confirm_dialog(
+    window: tauri::Window,
+    title: String,
+    message: String,
+) -> Result<bool, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let dialog = window.dialog();
+    Ok(dialog.message(message).title(title).blocking_show())
+}
+
 fn open_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -120,6 +149,7 @@ fn open_main_window(app: &AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let handle = app.handle();
             let show_item = MenuItem::new(app, "Show Stable", true, None::<&str>)?;
@@ -167,7 +197,10 @@ pub fn run() {
             restart_app,
             secure_app,
             doctor,
-            apps_folder
+            apps_folder,
+            open_folder,
+            open_url,
+            confirm_dialog
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

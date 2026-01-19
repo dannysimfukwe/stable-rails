@@ -38,7 +38,7 @@ pub fn run(app_name: &str) -> Result<()> {
     let spawn_result = Command::new("bash")
         .arg("-c")
         .arg(format!(
-            "cd '{}' && bundle exec nohup bin/rails server -p {} > /dev/null 2>&1 &",
+            "source ~/.rvm/scripts/rvm && export GEM_HOME=$(~/.rvm/gems/ruby-3.4.7@gemsets global gem env GEM_HOME 2>/dev/null || echo ~/.rvm/gems/ruby-3.4.7) && export PATH=\"$GEM_HOME/bin:$PATH\" && cd '{}' && nohup ~/.rvm/rubies/ruby-3.4.7/bin/ruby ~/.rvm/gems/ruby-3.4.7/bin/bundle exec bin/rails server -p {} > /dev/null 2>&1 &",
             app_path.display(),
             port
         ))

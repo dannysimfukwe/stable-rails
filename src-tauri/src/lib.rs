@@ -281,9 +281,12 @@ fn save_app_settings(
 fn bundle_install(name: String) -> Result<String, String> {
     let config = stable::config::load_app_config(&name).map_err(|err| err.to_string())?;
     let app_path = config.path;
-    let output = std::process::Command::new("bundle")
-        .arg("install")
-        .current_dir(&app_path)
+    let output = std::process::Command::new("/bin/bash")
+        .arg("-c")
+        .arg(&format!(
+            "source ~/.rvm/scripts/rvm && cd '{}' && ~/.rvm/rubies/ruby-3.4.7/bin/ruby ~/.rvm/gems/ruby-3.4.7/bin/bundle install",
+            app_path.display()
+        ))
         .output()
         .map_err(|err| err.to_string())?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();

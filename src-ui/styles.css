@@ -76,18 +76,15 @@ body {
 .brand-mark {
   width: 36px;
   height: 36px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #f6b93b, #f97316);
-  display: grid;
-  place-items: center;
-  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.brand-mark-core {
-  width: 16px;
-  height: 16px;
-  border-radius: 6px;
-  background: rgba(15, 23, 42, 0.9);
+.brand-mark img {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
 }
 
 .nav {

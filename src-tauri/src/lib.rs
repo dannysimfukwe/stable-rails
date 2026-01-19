@@ -500,6 +500,7 @@ pub fn run() {
             let tray_handle = handle.clone();
             let mut tray_builder = TrayIconBuilder::new()
                 .menu(&tray_menu)
+                .tooltip("Stable")
                 .on_menu_event(move |tray, event| match event.id().as_ref() {
                     "Show Stable" => open_main_window(tray.app_handle()),
                     "Quit" => tray.app_handle().exit(0),
@@ -515,10 +516,6 @@ pub fn run() {
                         open_main_window(tray.app_handle());
                     }
                 });
-
-            if let Some(icon) = app.default_window_icon().cloned() {
-                tray_builder = tray_builder.icon(icon);
-            }
 
             let _tray = tray_builder.build(&tray_handle)?;
 

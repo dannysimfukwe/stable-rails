@@ -15,6 +15,8 @@ pub struct AppConfig {
     pub caddy_enabled: bool,
     pub domain: String,
     pub custom_domain: Option<String>,
+    pub pid: Option<i32>,
+    pub time_started: Option<i64>,
 }
 
 impl Default for AppConfig {
@@ -29,6 +31,8 @@ impl Default for AppConfig {
             caddy_enabled: true,
             domain: String::new(),
             custom_domain: None,
+            pid: None,
+            time_started: None,
         }
     }
 }
@@ -154,6 +158,12 @@ pub fn load_app_config(app_name: &str) -> Result<AppConfig> {
             app_config.custom_domain = Some(domain.to_string());
             app_config.domain = domain.to_string();
         }
+        if let Some(pid) = config["pid"].as_i64() {
+            app_config.pid = Some(pid as i32);
+        }
+        if let Some(ts) = config["time_started"].as_i64() {
+            app_config.time_started = Some(ts);
+        }
     }
 
     Ok(app_config)
@@ -180,6 +190,12 @@ pub fn save_app_config(app_name: &str, config: &AppConfig) -> Result<()> {
     writeln!(file, "domain: {}", config.domain)?;
     if let Some(domain) = &config.custom_domain {
         writeln!(file, "custom_domain: {}", domain)?;
+    }
+    if let Some(pid) = config.pid {
+        writeln!(file, "pid: {}", pid)?;
+    }
+    if let Some(ts) = config.time_started {
+        writeln!(file, "time_started: {}", ts)?;
     }
 
     Ok(())
@@ -236,20 +252,26 @@ pub fn update_global_caddyfile() -> Result<()> {
     let all_configs = load_all_app_configs()?;
 
     for config in all_configs {
+        if !config.caddy_enabled {
+            continue;
+        }
+
         let domain = format!("{}.test", config.name);
         let cert_path = apps_folder().join(&config.name).join("cert.pem");
         let key_path = apps_folder().join(&config.name).join("key.pem");
 
         content.push_str(&format!("{} {{\n", domain));
 
-        if cert_path.exists() && key_path.exists() {
-            content.push_str(&format!(
-                "    tls {} {}\n",
-                cert_path.display(),
-                key_path.display()
-            ));
-        } else {
-            content.push_str("    tls internal\n");
+        if config.tls_enabled {
+            if cert_path.exists() && key_path.exists() {
+                content.push_str(&format!(
+                    "    tls {} {}\n",
+                    cert_path.display(),
+                    key_path.display()
+                ));
+            } else {
+                content.push_str("    tls internal\n");
+            }
         }
         content.push_str(&format!(
             "    reverse_proxy 127.0.0.1:{}\n}}\n",

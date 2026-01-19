@@ -5,6 +5,8 @@ let appsGrid, runView, runAppName, runAppUrl, runUptime, runNote;
 let backToApps, openRunning, openLocal, restartRunning, stopRunning, shareRunning;
 let doctorOutput, statusText, appsFolder, addAppSubmit, newAppSubmit, addAppBrowse;
 let activityPanel, activityStatus, activityLog;
+let consoleOutput, consoleInput, tableList, sqlInput, redisResults, logsOutput;
+let currentAppTab = "overview";
 
 const views = {};
 
@@ -12,7 +14,10 @@ const state = {
   apps: [],
   busy: false,
   runningApps: [],
+  currentApp: null,
   uptimeTimer: null,
+  consoleHistory: [],
+  consoleHistoryIndex: -1,
 };
 
 function setStatus(message, isError = false) {
@@ -66,6 +71,21 @@ function switchView(view) {
   const btns = document.querySelectorAll(".nav-item");
   btns.forEach((button) => {
     button.classList.toggle("is-active", button.dataset.view === view);
+  });
+
+  const hero = document.querySelector(".hero");
+  if (hero) {
+    hero.classList.toggle("is-hidden", view === "run");
+  }
+}
+
+function switchAppTab(tab) {
+  currentAppTab = tab;
+  document.querySelectorAll(".app-tab").forEach((t) => {
+    t.classList.toggle("is-active", t.dataset.tab === tab);
+  });
+  document.querySelectorAll(".tab-content").forEach((c) => {
+    c.classList.toggle("is-active", c.id === `tab-${tab}`);
   });
 }
 
@@ -292,27 +312,197 @@ function showRunView(app) {
   if (!state.runningApps.includes(app.name)) {
     state.runningApps.push(app.name);
   }
-  const appNameLink = document.getElementById("run-app-name-link");
-  if (appNameLink) appNameLink.textContent = app.name;
-  runAppUrl.textContent = app.url;
-  runNote.textContent = "Your app is served via Caddy with TLS.";
-  runUptime.textContent = formatUptime(Date.now());
+  state.currentApp = app;
+  
+  document.getElementById("run-app-name").textContent = app.name;
+  const runAppUrlEl = document.getElementById("run-app-url");
+  if (runAppUrlEl) {
+    runAppUrlEl.textContent = app.url;
+    runAppUrlEl.href = app.url;
+  }
+  
+  const portEl = document.getElementById("run-port");
+  if (portEl) portEl.textContent = app.port || 3000;
+
+  const runStatus = document.getElementById("run-status");
+  if (runStatus) {
+    runStatus.textContent = "Running";
+    runStatus.classList.add("running");
+  }
+
   if (state.uptimeTimer) {
     clearInterval(state.uptimeTimer);
   }
   state.uptimeTimer = setInterval(() => {
-    runUptime.textContent = formatUptime(Date.now());
+    const uptimeEl = document.getElementById("run-uptime");
+    if (uptimeEl) uptimeEl.textContent = formatUptime(Date.now());
   }, 1000);
+  
   switchView("run");
+  switchAppTab("overview");
+  
+  loadAppInfo(app.name);
 }
 
-function showAppDetails(app) {
-  const appNameLink = document.getElementById("run-app-name-link");
-  if (appNameLink) appNameLink.textContent = app.name;
-  runAppUrl.textContent = app.url;
-  runNote.textContent = "Configure your app settings below.";
-  runUptime.textContent = "Not running";
-  switchView("run");
+async function loadAppInfo(appName) {
+  try {
+    const config = await invoke("load_app_config", { name: appName });
+    if (config) {
+      const rubyEl = document.getElementById("run-ruby-version");
+      const railsEl = document.getElementById("run-rails-version");
+      if (rubyEl) rubyEl.textContent = config.ruby_version || "-";
+      if (railsEl) railsEl.textContent = config.rails_version || "-";
+    }
+  } catch (e) {
+    console.log("Could not load app info:", e);
+  }
+}
+
+async function loadTables() {
+  if (!state.currentApp) return;
+  try {
+    const tables = await invoke("db_tables", { name: state.currentApp.name });
+    const tableListEl = document.getElementById("table-list");
+    if (tableListEl) {
+      if (tables && tables.length > 0) {
+        tableListEl.innerHTML = tables.map(t => `
+          <li class="table-item" data-table="${t}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="3" y1="9" x2="21" y2="9"/>
+              <line x1="3" y1="15" x2="21" y2="15"/>
+              <line x1="9" y1="3" x2="9" y2="21"/>
+              <line x1="15" y1="3" x2="15" y2="21"/>
+            </svg>
+            ${t}
+          </li>
+        `).join("");
+      } else {
+        tableListEl.innerHTML = '<li class="table-item">No tables found</li>';
+      }
+    }
+  } catch (e) {
+    const tableListEl = document.getElementById("table-list");
+    if (tableListEl) {
+      tableListEl.innerHTML = '<li class="table-item">Unable to load tables</li>';
+    }
+  }
+}
+
+async function runSqlQuery() {
+  const sql = sqlInput?.value?.trim();
+  if (!sql || !state.currentApp) return;
+  
+  const resultsEl = document.getElementById("query-results");
+  if (resultsEl) {
+    resultsEl.innerHTML = '<p>Running query...</p>';
+  }
+  
+  try {
+    const result = await invoke("db_query", { name: state.currentApp.name, sql });
+    if (result && result.rows) {
+      if (result.rows.length === 0) {
+        if (resultsEl) resultsEl.innerHTML = '<p class="placeholder">No results returned</p>';
+        return;
+      }
+      
+      let html = '<table><thead><tr>';
+      for (const col of result.columns) {
+        html += `<th>${col}</th>`;
+      }
+      html += '</tr></thead><tbody>';
+      
+      for (const row of result.rows) {
+        html += '<tr>';
+        for (const val of row) {
+          html += `<td>${val === null ? '<em>NULL</em>' : val}</td>`;
+        }
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      
+      if (resultsEl) resultsEl.innerHTML = html;
+    } else {
+      if (resultsEl) resultsEl.innerHTML = '<p class="placeholder">Query executed successfully (no rows returned)</p>';
+    }
+  } catch (e) {
+    if (resultsEl) resultsEl.innerHTML = `<p style="color: #f87171;">Error: ${e}</p>`;
+  }
+}
+
+async function scanRedisKeys() {
+  const pattern = document.getElementById("redis-key")?.value?.trim() || "*";
+  if (!state.currentApp) return;
+  
+  const resultsEl = document.getElementById("redis-results");
+  if (resultsEl) {
+    resultsEl.innerHTML = '<p>Scanning...</p>';
+  }
+  
+  try {
+    const keys = await invoke("redis_scan", { name: state.currentApp.name, pattern });
+    if (keys && keys.length > 0) {
+      if (resultsEl) {
+        resultsEl.innerHTML = keys.map(k => `
+          <div class="redis-key-item" data-key="${k}">${k}</div>
+        `).join("");
+      }
+    } else {
+      if (resultsEl) resultsEl.innerHTML = '<p class="placeholder">No keys found</p>';
+    }
+  } catch (e) {
+    if (resultsEl) resultsEl.innerHTML = `<p style="color: #f87171;">Error: ${e}</p>`;
+  }
+}
+
+function consoleLog(text, type = "output") {
+  if (!consoleOutput) return;
+  const line = document.createElement("div");
+  line.className = `console-line ${type}`;
+  line.textContent = text;
+  consoleOutput.appendChild(line);
+  consoleOutput.scrollTop = consoleOutput.scrollHeight;
+}
+
+async function sendConsoleCommand() {
+  const cmd = consoleInput?.value?.trim();
+  if (!cmd || !state.currentApp) return;
+  
+  state.consoleHistory.push(cmd);
+  state.consoleHistoryIndex = state.consoleHistory.length;
+  
+  consoleLog(`>> ${cmd}`, "input");
+  consoleInput.value = "";
+  
+  try {
+    const result = await invoke("rails_console", { name: state.currentApp.name, command: cmd });
+    if (result) {
+      consoleLog(result, "output");
+    }
+  } catch (e) {
+    consoleLog(`Error: ${e}`, "error");
+  }
+}
+
+function handleConsoleKeydown(e) {
+  if (e.key === "Enter") {
+    sendConsoleCommand();
+  } else if (e.key === "ArrowUp") {
+    if (state.consoleHistoryIndex > 0) {
+      state.consoleHistoryIndex--;
+      consoleInput.value = state.consoleHistory[state.consoleHistoryIndex];
+    }
+    e.preventDefault();
+  } else if (e.key === "ArrowDown") {
+    if (state.consoleHistoryIndex < state.consoleHistory.length - 1) {
+      state.consoleHistoryIndex++;
+      consoleInput.value = state.consoleHistory[state.consoleHistoryIndex];
+    } else {
+      state.consoleHistoryIndex = state.consoleHistory.length;
+      consoleInput.value = "";
+    }
+    e.preventDefault();
+  }
 }
 
 async function handleAppAction(action, name) {
@@ -341,7 +531,46 @@ async function handleAppAction(action, name) {
   if (action === "details") {
     const app = state.apps.find((entry) => entry.name === name);
     if (app) {
-      showAppDetails(app);
+      state.currentApp = app;
+      
+      document.getElementById("run-app-name").textContent = app.name;
+      const runAppUrlEl = document.getElementById("run-app-url");
+      if (runAppUrlEl) {
+        runAppUrlEl.textContent = app.url;
+        runAppUrlEl.href = app.url;
+      }
+      
+      const portEl = document.getElementById("run-port");
+      if (portEl) portEl.textContent = app.port || 3000;
+
+      const isRunning = state.runningApps.includes(app.name);
+      const runStatus = document.getElementById("run-status");
+      if (runStatus) {
+        runStatus.textContent = isRunning ? "Running" : "Stopped";
+        runStatus.classList.toggle("running", isRunning);
+      }
+
+      if (isRunning) {
+        if (state.uptimeTimer) {
+          clearInterval(state.uptimeTimer);
+        }
+        state.uptimeTimer = setInterval(() => {
+          const uptimeEl = document.getElementById("run-uptime");
+          if (uptimeEl) uptimeEl.textContent = formatUptime(Date.now());
+        }, 1000);
+      } else {
+        const uptimeEl = document.getElementById("run-uptime");
+        if (uptimeEl) uptimeEl.textContent = "Not running";
+        if (state.uptimeTimer) {
+          clearInterval(state.uptimeTimer);
+          state.uptimeTimer = null;
+        }
+      }
+      
+      switchView("run");
+      switchAppTab("overview");
+      
+      loadAppInfo(app.name);
     }
     return;
   }
@@ -373,9 +602,16 @@ async function handleAppAction(action, name) {
     } else if (action === "stop") {
       state.runningApps = state.runningApps.filter(n => n !== name);
       loadApps();
-      if (state.runningApps.length > 0) {
+      if (state.currentApp && state.currentApp.name === name) {
+        const runStatus = document.getElementById("run-status");
+        if (runStatus) {
+          runStatus.textContent = "Stopped";
+          runStatus.classList.remove("running");
+        }
+      }
+      if (state.runningApps.length > 0 && state.currentApp && state.currentApp.name === name) {
         switchView("apps");
-      } else {
+      } else if (state.runningApps.length === 0 || !state.runningApps.includes(state.currentApp?.name)) {
         switchView("apps");
       }
       setStatus("Ready");
@@ -416,6 +652,12 @@ function wireEvents() {
   activityPanel = document.querySelector("#activity-panel");
   activityStatus = document.querySelector("#activity-status");
   activityLog = document.querySelector("#activity-log");
+  consoleOutput = document.getElementById("console-output");
+  consoleInput = document.getElementById("console-input");
+  tableList = document.getElementById("table-list");
+  sqlInput = document.getElementById("sql-input");
+  redisResults = document.getElementById("redis-results");
+  logsOutput = document.getElementById("logs-output");
 
   views.apps = document.querySelector("#apps-view");
   views.doctor = document.querySelector("#doctor-view");
@@ -426,9 +668,16 @@ function wireEvents() {
     button.addEventListener("click", () => switchView(button.dataset.view));
   });
 
-  document
-    .querySelector("#refresh-apps")
-    .addEventListener("click", loadApps);
+  document.querySelectorAll(".app-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      switchAppTab(tab.dataset.tab);
+      if (tab.dataset.tab === "database") {
+        loadTables();
+      }
+    });
+  });
+
+  document.querySelector("#refresh-apps").addEventListener("click", loadApps);
   document.querySelector("#run-doctor")?.addEventListener("click", runDoctor);
   document.querySelector("#add-app")?.addEventListener("click", () => {
     browseFolder();
@@ -506,58 +755,90 @@ function wireEvents() {
     switchView("apps");
   });
 
-  const appNameLink = document.getElementById("run-app-name-link");
-  appNameLink?.addEventListener("click", () => {
-    switchView("apps");
-  });
-
-  const toggleSettingsBtn = document.getElementById("toggle-settings");
-  const settingsPanel = document.getElementById("settings-panel");
-  toggleSettingsBtn?.addEventListener("click", () => {
-    settingsPanel?.classList.toggle("is-hidden");
-    toggleSettingsBtn.textContent = settingsPanel?.classList.contains("is-hidden") ? "Expand" : "Collapse";
-  });
-
   backToApps?.addEventListener("click", () => {
     switchView("apps");
   });
 
   openRunning?.addEventListener("click", () => {
-    const firstRunning = state.apps.find(app => state.runningApps.includes(app.name));
-    if (firstRunning) {
-      openLocalFallback(firstRunning.url);
+    if (state.currentApp) {
+      invoke("open_url", { url: state.currentApp.url });
     }
   });
 
   restartRunning?.addEventListener("click", async () => {
-    const firstRunning = state.apps.find(app => state.runningApps.includes(app.name));
-    if (firstRunning) {
-      await handleAppAction("restart", firstRunning.name);
+    if (state.currentApp) {
+      await handleAppAction("restart", state.currentApp.name);
     }
   });
 
   openLocal?.addEventListener("click", async () => {
-    await openLocalFallback("http://127.0.0.1:3000");
+    if (state.currentApp) {
+      invoke("open_url", { url: `http://127.0.0.1:${state.currentApp.port || 3000}` });
+    }
   });
 
   stopRunning?.addEventListener("click", async () => {
-    const firstRunning = state.apps.find(app => state.runningApps.includes(app.name));
-    if (firstRunning) {
-      await handleAppAction("stop", firstRunning.name);
+    if (state.currentApp) {
+      await handleAppAction("stop", state.currentApp.name);
+      switchView("apps");
     }
-    switchView("apps");
   });
 
   shareRunning?.addEventListener("click", async () => {
-    const firstRunning = state.apps.find(app => state.runningApps.includes(app.name));
-    if (firstRunning) {
-      const url = firstRunning.url;
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        showToast("Link copied");
-      } else {
-        showToast(url);
-      }
+    if (state.currentApp && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(state.currentApp.url);
+      showToast("Link copied");
+    }
+  });
+
+  if (consoleInput) {
+    consoleInput.addEventListener("keydown", handleConsoleKeydown);
+  }
+
+  document.getElementById("clear-console")?.addEventListener("click", () => {
+    if (consoleOutput) {
+      consoleOutput.innerHTML = '<div class="console-line prompt">irb(main):001:0> </div>';
+    }
+  });
+
+  document.getElementById("refresh-tables")?.addEventListener("click", loadTables);
+
+  document.getElementById("new-query")?.addEventListener("click", () => {
+    const queryArea = document.getElementById("query-area");
+    if (queryArea) queryArea.style.display = "block";
+  });
+
+  document.getElementById("cancel-query")?.addEventListener("click", () => {
+    const queryArea = document.getElementById("query-area");
+    if (queryArea) queryArea.style.display = "none";
+  });
+
+  document.getElementById("run-query")?.addEventListener("click", runSqlQuery);
+
+  document.getElementById("redis-scan")?.addEventListener("click", scanRedisKeys);
+
+  document.getElementById("clear-logs")?.addEventListener("click", () => {
+    if (logsOutput) logsOutput.textContent = "No logs yet.";
+  });
+
+  document.getElementById("save-settings")?.addEventListener("click", async () => {
+    if (!state.currentApp) return;
+    const env = document.getElementById("setting-rails-env")?.value;
+    const tls = document.getElementById("setting-tls")?.checked;
+    const caddy = document.getElementById("setting-caddy")?.checked;
+    
+    try {
+      await invoke("save_app_settings", {
+        name: state.currentApp.name,
+        railsEnv: env,
+        port: state.currentApp.port || 3000,
+        customDomain: "",
+        tlsEnabled: tls,
+        caddyEnabled: caddy
+      });
+      showToast("Settings saved");
+    } catch (e) {
+      showToast(`Error saving settings: ${e}`);
     }
   });
 

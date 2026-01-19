@@ -1,8 +1,9 @@
-use crate::stable::config::{load_app_config, update_global_caddyfile};
+use crate::stable::config::{
+    apps_folder, load_app_config, save_app_config, update_global_caddyfile,
+};
 use anyhow::Result;
 use std::ffi::{OsStr, OsString};
-use std::path::Path;
-use sysinfo::{ProcessesToUpdate, System};
+use sysinfo::{Pid, ProcessesToUpdate, System};
 
 fn cmdline_to_string(cmd: &[OsString]) -> String {
     cmd.iter()
@@ -12,56 +13,145 @@ fn cmdline_to_string(cmd: &[OsString]) -> String {
 }
 
 pub fn run(app_name: &str) -> Result<()> {
-    let app_path = dirs::home_dir()
-        .expect("Cannot find home directory")
-        .join(".stable_apps")
-        .join(app_name);
+    let app_path = apps_folder().join(app_name);
 
     if !app_path.exists() {
         anyhow::bail!("App folder '{}' does not exist", app_name);
     }
 
-    let config = load_app_config(app_name).ok();
-    let port = config.as_ref().map(|c| c.port).unwrap_or(3000);
+    let mut config = load_app_config(app_name).ok().unwrap_or_default();
+    let port = config.port;
+    let port_str = port.to_string();
 
     let mut sys = System::new();
     sys.refresh_processes(ProcessesToUpdate::All, true);
 
+    println!("Stopping app '{}' on port {}", app_name, port_str);
+
+    if let Some(pid) = config.pid {
+        println!("Killing stored PID: {}", pid);
+        if let Some(process) = sys.process(Pid::from_u32(pid as u32)) {
+            println!(
+                "Found process, killing: {}",
+                cmdline_to_string(process.cmd())
+            );
+            let _ = process.kill();
+        }
+        let _ = std::process::Command::new("kill")
+            .arg("-9")
+            .arg(pid.to_string())
+            .output();
+    }
+
+    let _ = std::process::Command::new("pkill")
+        .arg("-9")
+        .arg("-f")
+        .arg(&format!("rails server.*{}", port_str))
+        .output();
+
+    let _ = std::process::Command::new("pkill")
+        .arg("-9")
+        .arg("-f")
+        .arg(&format!("ruby.*-p {}", port_str))
+        .output();
+
+    let _ = std::process::Command::new("pkill")
+        .arg("-9")
+        .arg("-f")
+        .arg(&format!("rackup.*-p {}", port_str))
+        .output();
+
+    let lsof_output = std::process::Command::new("lsof")
+        .arg("-ti")
+        .arg(&format!(":{}", port_str))
+        .output();
+
+    if let Ok(output) = lsof_output {
+        let pids = String::from_utf8_lossy(&output.stdout);
+        for pid in pids.split_whitespace() {
+            println!("lsof found PID: {}, killing", pid);
+            let _ = std::process::Command::new("kill")
+                .arg("-9")
+                .arg(pid)
+                .output();
+        }
+    }
+
+    sys.refresh_processes(ProcessesToUpdate::All, true);
+
+    println!(
+        "Looking for any Ruby/Rails processes on port {}...",
+        port_str
+    );
     for process in sys.processes_by_name(OsStr::new("ruby")) {
         let cmdline = cmdline_to_string(process.cmd());
-        let has_app_name = cmdline.contains(app_name);
-        let has_port = cmdline.contains(&format!("-p {}", port))
-            || cmdline.contains(&format!("--port {}", port));
+        let has_port = cmdline.contains(&format!("-p {}", port_str))
+            || cmdline.contains(&format!("--port {}", port_str))
+            || cmdline.contains("rails server")
+            || cmdline.contains("bin/rails server")
+            || cmdline.contains("PASSENGER_APP_ROOT")
+            || cmdline.contains(&app_name);
 
-        if has_app_name && (has_port || cmdline.contains("rails server")) {
-            process.kill();
+        if has_port {
+            println!("Found ruby process to kill: {}", cmdline);
+            let _ = process.kill();
         }
     }
 
-    for process in sys.processes_by_name(OsStr::new("caddy")) {
+    println!("Also checking ALL ruby processes for safety...");
+    for process in sys.processes_by_name(OsStr::new("ruby")) {
         let cmdline = cmdline_to_string(process.cmd());
-        if cmdline.contains(app_name) || cmdline.contains(&format!(":{}", port)) {
-            process.kill();
+        if cmdline.contains("rails server") || cmdline.contains("bin/rails") {
+            println!("Killing Rails process: {}", cmdline);
+            let _ = process.kill();
         }
     }
 
-    for process in sys.processes_by_name(OsStr::new(app_name)) {
-        if let Some(cwd) = process.cwd() {
-            if cwd == Path::new(&app_path) {
-                process.kill();
-            }
+    let _ = std::process::Command::new("pkill")
+        .arg("-9")
+        .arg("-f")
+        .arg(&format!("rails server"))
+        .output();
+
+    let _ = std::process::Command::new("pkill")
+        .arg("-9")
+        .arg("-f")
+        .arg(&format!("caddy.*{}", port_str))
+        .output();
+
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    sys.refresh_processes(ProcessesToUpdate::All, true);
+
+    let mut still_running = false;
+    for process in sys.processes_by_name(OsStr::new("ruby")) {
+        let cmdline = cmdline_to_string(process.cmd());
+        let has_port = cmdline.contains(&format!("-p {}", port_str))
+            || cmdline.contains("rails server")
+            || cmdline.contains(&app_name);
+
+        if has_port {
+            println!("WARNING: Process still running: {}", cmdline);
+            still_running = true;
+            let _ = process.kill();
         }
     }
 
-    for process in sys.processes_by_name(OsStr::new("caddy")) {
-        if let Some(cwd) = process.cwd() {
-            if cwd == Path::new(&app_path) {
-                process.kill();
-            }
-        }
+    if still_running {
+        println!("Force killing all rails server processes...");
+        let _ = std::process::Command::new("pkill")
+            .arg("-9")
+            .arg("-f")
+            .arg("rails server")
+            .output();
     }
 
-    update_global_caddyfile()?;
+    config.pid = None;
+    config.time_started = None;
+    let _ = save_app_config(app_name, &config);
 
+    let _ = update_global_caddyfile();
+
+    println!("Stop complete for {}", app_name);
     Ok(())
 }

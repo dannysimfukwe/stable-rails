@@ -843,6 +843,29 @@ function wireEvents() {
     }
   });
 
+  document.getElementById("install-ruby-btn")?.addEventListener("click", async () => {
+    const select = document.getElementById("ruby-version-select");
+    const version = select?.value;
+    if (!version) {
+      showToast("Please select a Ruby version");
+      return;
+    }
+    try {
+      showToast(`Installing Ruby ${version}...`);
+      const result = await invoke("install_ruby", { version });
+      showToast(result);
+      loadRubyVersions();
+    } catch (e) {
+      if (e.includes("brew install")) {
+        showToast(`Install Ruby ${version} via Homebrew first: brew install ruby@${version}`);
+      } else {
+        showToast(`Failed to install Ruby: ${e}`);
+      }
+    }
+  });
+
+  loadRubyVersions();
+
   if (appsGrid) {
     appsGrid.addEventListener("click", (event) => {
       const button = event.target.closest("button[data-action]");
@@ -863,6 +886,34 @@ async function loadAppsFolder() {
     if (appsFolder) appsFolder.textContent = folder;
   } catch (error) {
     if (appsFolder) appsFolder.textContent = "~/StableCaddy/projects";
+  }
+}
+
+async function loadRubyVersions() {
+  const container = document.getElementById("ruby-versions-list");
+  if (!container) return;
+  
+  try {
+    const versions = await invoke("list_ruby_versions");
+    if (versions.length === 0) {
+      container.innerHTML = '<p class="loading">No Ruby versions installed yet.</p>';
+      return;
+    }
+    
+    container.innerHTML = versions.map(v => `
+      <div class="ruby-version-item">
+        <div class="ruby-version-info">
+          <div class="ruby-version-icon">Rb</div>
+          <div>
+            <div class="ruby-version-name">Ruby ${v}</div>
+            <div class="ruby-version-path">${v.includes('.') ? 'Local build' : 'Homebrew'}</div>
+          </div>
+        </div>
+        <span class="ruby-version-status">Installed</span>
+      </div>
+    `).join("");
+  } catch (e) {
+    container.innerHTML = '<p class="loading">Failed to load Ruby versions</p>';
   }
 }
 

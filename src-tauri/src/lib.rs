@@ -281,11 +281,17 @@ fn save_app_settings(
 fn bundle_install(name: String) -> Result<String, String> {
     let config = stable::config::load_app_config(&name).map_err(|err| err.to_string())?;
     let app_path = config.path;
-    let output = std::process::Command::new("/bin/bash")
-        .arg("-c")
+
+    let (ruby_path, bundle_path) =
+        stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|err| err.to_string())?;
+
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
         .arg(&format!(
-            "source ~/.rvm/scripts/rvm && cd '{}' && ~/.rvm/rubies/ruby-3.4.7/bin/ruby ~/.rvm/gems/ruby-3.4.7/bin/bundle install",
-            app_path.display()
+            "cd '{}' && {} {} install",
+            app_path.display(),
+            ruby_path.display(),
+            bundle_path.display()
         ))
         .output()
         .map_err(|err| err.to_string())?;
@@ -295,6 +301,80 @@ fn bundle_install(name: String) -> Result<String, String> {
         return Err(format!("Bundle install failed:\n{}", stderr));
     }
     Ok(stdout)
+}
+
+#[tauri::command]
+fn list_ruby_versions() -> Result<Vec<String>, String> {
+    let mut versions = Vec::new();
+
+    let local_dir = stable::ruby_manager::ruby_versions_dir();
+    if local_dir.exists() {
+        for entry in std::fs::read_dir(&local_dir).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with("ruby-") {
+                let v = name.strip_prefix("ruby-").unwrap().to_string();
+                if !versions.contains(&v) {
+                    versions.push(v);
+                }
+            }
+        }
+    }
+
+    let homebrew_prefix = std::process::Command::new("brew")
+        .arg("--prefix")
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|| "/opt/homebrew".to_string());
+
+    for v in &["3.4", "3.3", "3.2", "3.1"] {
+        let brew_path = format!("{}/opt/ruby@{}/bin/ruby", homebrew_prefix, v);
+        if std::path::Path::new(&brew_path).exists() && !versions.contains(&v.to_string()) {
+            versions.push(v.to_string());
+        }
+    }
+
+    if let Some(home_dir) = dirs::home_dir() {
+        let rvm_rubies = home_dir.join(".rvm/rubies");
+        if rvm_rubies.exists() {
+            for entry in std::fs::read_dir(&rvm_rubies).map_err(|e| e.to_string())? {
+                let entry = entry.map_err(|e| e.to_string())?;
+                let name = entry.file_name().to_string_lossy().to_string();
+
+                if name.starts_with("ruby-") && entry.path().is_dir() {
+                    let ruby_bin = entry.path().join("bin").join("ruby");
+                    if ruby_bin.exists() {
+                        let version_str = name.strip_prefix("ruby-").unwrap_or(&name).to_string();
+                        let short_version = extract_short_version(&version_str);
+                        if !versions.contains(&version_str) && !versions.contains(&short_version) {
+                            versions.push(short_version);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    versions.sort();
+    versions.dedup();
+    Ok(versions)
+}
+
+fn extract_short_version(full: &str) -> String {
+    let parts: Vec<&str> = full.split('.').collect();
+    if parts.len() >= 2 {
+        format!("{}.{}", parts[0], parts[1])
+    } else {
+        full.to_string()
+    }
+}
+
+#[tauri::command]
+fn install_ruby(version: String) -> Result<String, String> {
+    stable::ruby_manager::install_ruby_version(&version)
+        .map(|_v| format!("Ruby {} installed", version))
+        .map_err(|e| e.to_string())
 }
 
 fn open_main_window(app: &AppHandle) {
@@ -369,7 +449,9 @@ pub fn run() {
             db_query,
             redis_scan,
             save_app_settings,
-            bundle_install
+            bundle_install,
+            list_ruby_versions,
+            install_ruby
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

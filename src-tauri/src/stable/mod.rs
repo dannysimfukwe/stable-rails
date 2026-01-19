@@ -5,6 +5,7 @@ pub mod list;
 pub mod new;
 pub mod remove;
 pub mod restart;
+pub mod ruby_manager;
 pub mod secure;
 pub mod start;
 pub mod start_all;

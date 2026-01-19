@@ -310,32 +310,60 @@
             </div>
 
             <div class="tab-content" id="tab-settings">
-              <div class="settings-form">
-                <div class="setting-row">
-                  <label>Rails Environment</label>
-                  <select id="setting-rails-env">
-                    <option value="development">Development</option>
-                    <option value="production">Production</option>
-                    <option value="test">Test</option>
-                  </select>
+              <div class="settings-section">
+                <div class="settings-header">
+                  <h3>Ruby Versions</h3>
                 </div>
-                <div class="setting-row toggle-row">
-                  <label>Enable TLS (HTTPS)</label>
-                  <label class="toggle">
-                    <input type="checkbox" id="setting-tls" checked>
-                    <span class="toggle-slider"></span>
-                  </label>
+                <div class="ruby-versions-list" id="ruby-versions-list">
+                  <p class="loading">Loading...</p>
                 </div>
-                <div class="setting-row toggle-row">
-                  <label>Use Caddy Proxy</label>
-                  <label class="toggle">
-                    <input type="checkbox" id="setting-caddy" checked>
-                    <span class="toggle-slider"></span>
-                  </label>
+                <div class="ruby-install-section">
+                  <label>Install Ruby Version</label>
+                  <p style="font-size: 12px; color: var(--ink-soft); margin-bottom: 12px;">
+                    Requires: brew install ruby@&lt;version&gt; first
+                  </p>
+                  <div class="ruby-version-select-row">
+                    <select id="ruby-version-select">
+                      <option value="3.4">Ruby 3.4</option>
+                      <option value="3.3">Ruby 3.3</option>
+                      <option value="3.2">Ruby 3.2</option>
+                      <option value="3.1">Ruby 3.1</option>
+                    </select>
+                    <button class="primary" id="install-ruby-btn">Install</button>
+                  </div>
                 </div>
-                <div class="setting-actions">
-                  <button class="ghost" id="bundle-install">Bundle Install</button>
-                  <button class="primary" id="save-settings">Save Settings</button>
+              </div>
+              <div class="settings-section">
+                <div class="settings-header">
+                  <h3>App Settings</h3>
+                </div>
+                <div class="settings-form">
+                  <div class="setting-row">
+                    <label>Rails Environment</label>
+                    <select id="setting-rails-env">
+                      <option value="development">Development</option>
+                      <option value="production">Production</option>
+                      <option value="test">Test</option>
+                    </select>
+                  </div>
+                  <div class="setting-row toggle-row">
+                    <label>Enable TLS (HTTPS)</label>
+                    <label class="toggle">
+                      <input type="checkbox" id="setting-tls" checked>
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                  <div class="setting-row toggle-row">
+                    <label>Use Caddy Proxy</label>
+                    <label class="toggle">
+                      <input type="checkbox" id="setting-caddy" checked>
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                  <div class="setting-actions">
+                    <button class="ghost" id="bundle-install">Bundle Install</button>
+                    <button class="primary" id="save-settings">Save Settings</button>
+                  </div>
                 </div>
               </div>
             </div>

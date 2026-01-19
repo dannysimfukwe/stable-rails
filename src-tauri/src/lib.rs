@@ -164,10 +164,17 @@ fn load_app_config(name: String) -> Result<stable::config::AppConfig, String> {
 #[tauri::command]
 fn rails_console(name: String, command: String) -> Result<String, String> {
     let app_path = stable::utils::apps_folder().join(&name);
-    let output = std::process::Command::new("bin/rails")
-        .arg("runner")
-        .arg(&command)
-        .current_dir(&app_path)
+    let (ruby_path, bundle_path) =
+        stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|e| e.to_string())?;
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg(&format!(
+            "cd '{}' && '{}' '{}' exec rails runner '{}'",
+            app_path.display(),
+            ruby_path.display(),
+            bundle_path.display(),
+            command
+        ))
         .output()
         .map_err(|err| err.to_string())?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -182,12 +189,25 @@ fn rails_console(name: String, command: String) -> Result<String, String> {
 #[tauri::command]
 fn db_tables(name: String) -> Result<Vec<String>, String> {
     let app_path = stable::utils::apps_folder().join(&name);
-    let output = std::process::Command::new("bin/rails")
-        .arg("runner")
-        .arg("ActiveRecord::Base.connection.tables.sort.each { |t| puts t }")
-        .current_dir(&app_path)
+    let (ruby_path, bundle_path) =
+        stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|e| e.to_string())?;
+
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg(format!(
+            "cd '{}' && '{}' '{}' exec rails runner 'ActiveRecord::Base.connection.tables.sort.each {{ |t| puts t }}'",
+            app_path.display(),
+            ruby_path.display(),
+            bundle_path.display()
+        ))
         .output()
         .map_err(|err| err.to_string())?;
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !stderr.is_empty() && !output.status.success() {
+        return Err(stderr.to_string());
+    }
+
     let tables = String::from_utf8_lossy(&output.stdout)
         .lines()
         .filter(|l| !l.is_empty())
@@ -205,34 +225,54 @@ struct QueryResult {
 #[tauri::command]
 fn db_query(name: String, sql: String) -> Result<QueryResult, String> {
     let app_path = stable::utils::apps_folder().join(&name);
-    let sql_escaped = sql.replace('"', "\\\"");
-    let ruby_code = format!(
-        r#"
+    let (ruby_path, bundle_path) =
+        stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|e| e.to_string())?;
+
+    let script_path = "/tmp/stable_query.rb";
+    std::fs::write(
+        script_path,
+        format!(
+            r#"require 'json'
 result = ActiveRecord::Base.connection.execute("{}")
 if result.respond_to?(:columns)
   cols = result.columns.map(&:name)
   rows = result.to_a.map {{ |row| cols.map {{ |c| row[c].to_s }} }}
   puts JSON.generate(columns: cols, rows: rows)
-elsif result.respond_to?(:to_a)
-  puts JSON.generate(columns: [], rows: result.to_a.map {{ |r| r.values.map(&:to_s) }})
 else
-  puts "OK"
+  rows = result.to_a.map {{ |r| r.is_a?(Array) ? r.map(&:to_s) : r.to_s }}
+  puts JSON.generate(columns: [], rows: rows)
 end
 "#,
-        sql_escaped
-    );
-    let output = std::process::Command::new("bin/rails")
-        .arg("runner")
-        .arg(&ruby_code)
-        .current_dir(&app_path)
+            sql.replace('"', "\\\"")
+        ),
+    ).map_err(|e| e.to_string())?;
+
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg(&format!(
+            "cd '{}' && '{}' '{}' exec rails runner {}",
+            app_path.display(),
+            ruby_path.display(),
+            bundle_path.display(),
+            script_path
+        ))
         .output()
         .map_err(|err| err.to_string())?;
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    if stdout.contains("JSON") {
-        if let Ok(parsed) = serde_json::from_str::<QueryResult>(&stdout) {
-            return Ok(parsed);
-        }
+
+    let _ = std::fs::remove_file(script_path).map_err(|e| e.to_string());
+
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    if !output.status.success() {
+        return Err(if stderr.is_empty() { "Query failed".to_string() } else { stderr });
     }
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+
+    if let Ok(parsed) = serde_json::from_str::<QueryResult>(&stdout) {
+        return Ok(parsed);
+    }
+
     Ok(QueryResult {
         columns: Vec::new(),
         rows: Vec::new(),
@@ -242,13 +282,17 @@ end
 #[tauri::command]
 fn redis_scan(name: String, pattern: String) -> Result<Vec<String>, String> {
     let app_path = stable::utils::apps_folder().join(&name);
-    let output = std::process::Command::new("bin/rails")
-        .arg("runner")
-        .arg(format!(
-            r#"Redis.new.keys("{}").sort.each {{ |k| puts k }}"#,
+    let (ruby_path, bundle_path) =
+        stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|e| e.to_string())?;
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg(&format!(
+            "cd '{}' && '{}' '{}' exec rails runner 'Redis.new.keys(\"{}\").sort.each {{ |k| puts k }}'",
+            app_path.display(),
+            ruby_path.display(),
+            bundle_path.display(),
             pattern
         ))
-        .current_dir(&app_path)
         .output()
         .map_err(|err| err.to_string())?;
     let keys = String::from_utf8_lossy(&output.stdout)

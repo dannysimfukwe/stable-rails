@@ -395,6 +395,23 @@ async function loadTables() {
             ${t}
           </li>
         `).join("");
+
+        tableListEl.querySelectorAll('.table-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const tableName = item.dataset.table;
+            if (tableName) {
+              const queryArea = document.getElementById('query-area');
+              const sqlInput = document.getElementById('sql-input');
+              const queryResults = document.getElementById('query-results');
+              if (queryArea) queryArea.style.display = 'none';
+              if (sqlInput) sqlInput.value = `SELECT * FROM ${tableName} LIMIT 100;`;
+              if (queryResults) {
+                queryResults.innerHTML = '<p>Loading...</p>';
+                runTableQuery(tableName);
+              }
+            }
+          });
+        });
       } else {
         tableListEl.innerHTML = '<li class="table-item">No tables found</li>';
       }
@@ -402,8 +419,44 @@ async function loadTables() {
   } catch (e) {
     const tableListEl = document.getElementById("table-list");
     if (tableListEl) {
-      tableListEl.innerHTML = '<li class="table-item">Unable to load tables</li>';
+      tableListEl.innerHTML = `<li class="table-item" style="color: #f87171;">Error: ${e}</li>`;
     }
+  }
+}
+
+async function runTableQuery(tableName) {
+  if (!state.currentApp) return;
+  const resultsEl = document.getElementById("query-results");
+  if (!resultsEl) return;
+
+  resultsEl.innerHTML = `<p style="color: #94a3b8;">Running query: SELECT * FROM ${tableName} LIMIT 100...</p>`;
+
+  try {
+    const result = await invoke("db_query", { name: state.currentApp.name, sql: `SELECT * FROM ${tableName} LIMIT 100` });
+    console.log('db_query result:', JSON.stringify(result));
+
+    if (result && result.rows && result.rows.length > 0) {
+      let html = '<table><thead><tr>';
+      for (const col of result.columns) {
+        html += `<th>${col}</th>`;
+      }
+      html += '</tr></thead><tbody>';
+
+      for (const row of result.rows) {
+        html += '<tr>';
+        for (const val of row) {
+          html += `<td>${val === null ? '<em>NULL</em>' : val}</td>`;
+        }
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      resultsEl.innerHTML = html;
+    } else {
+      resultsEl.innerHTML = `<p class="placeholder">No data in "${tableName}" (table is empty)</p>`;
+    }
+  } catch (e) {
+    console.log('db_query error:', e);
+    resultsEl.innerHTML = `<p style="color: #f87171; white-space: pre-wrap; font-size: 12px;">Error: ${e}</p>`;
   }
 }
 

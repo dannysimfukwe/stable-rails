@@ -65,23 +65,20 @@ fn version_matches(rvm_name: &str, requested: &str) -> bool {
     if rvm_version == requested {
         return true;
     }
-    let requested_major_minor = if requested.contains('.') {
-        let parts: Vec<&str> = requested.split('.').collect();
-        if parts.len() >= 2 {
-            Some(format!("{}.{}", parts[0], parts[1]))
-        } else {
-            None
-        }
-    } else {
-        Some(requested.to_string())
-    };
 
-    if let Some(major_minor) = requested_major_minor {
-        rvm_version.starts_with(&major_minor)
-            && rvm_version.chars().nth(major_minor.len()) == Some('.')
-    } else {
-        false
+    let req_parts: Vec<&str> = requested.split('.').collect();
+    if req_parts.len() < 2 {
+        return false;
     }
+
+    let major = req_parts[0];
+    let minor = req_parts[1];
+
+    if rvm_version.starts_with(&format!("{}.{}.", major, minor)) {
+        return true;
+    }
+
+    false
 }
 
 fn find_rvm_bundle_path(ruby_path: &Path) -> PathBuf {

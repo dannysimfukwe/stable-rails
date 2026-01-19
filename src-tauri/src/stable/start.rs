@@ -1,4 +1,4 @@
-use crate::stable::config::{find_pids_by_port, load_app_config};
+use crate::stable::config::{find_pids_by_port, load_app_config, save_app_config};
 use crate::stable::ruby_manager::ensure_ruby_for_app;
 use crate::stable::utils::ensure_hosts_entry;
 use anyhow::Result;
@@ -36,9 +36,8 @@ pub fn run(app_name: &str) -> Result<()> {
     let spawn_result = Command::new("/bin/zsh")
         .arg("-lc")
         .arg(format!(
-            "cd '{}' && nohup {} {} exec bin/rails server -p {} > /dev/null 2>&1 &",
+            "cd '{}' && nohup {} exec bin/rails server -p {} > /tmp/rails.log 2>&1 &",
             app_path.display(),
-            ruby_path.display(),
             bundle_path.display(),
             port
         ))
@@ -48,6 +47,18 @@ pub fn run(app_name: &str) -> Result<()> {
 
     if let Err(e) = spawn_result {
         anyhow::bail!("Failed to spawn Rails server: {}", e);
+    }
+
+    // Wait for the server to start and bind to the port
+    std::thread::sleep(Duration::from_secs(3));
+
+    // Check if the app is running and save config
+    let pids = find_pids_by_port(port);
+    if let Some(first_pid) = pids.first() {
+        let mut config = load_app_config(app_name)?;
+        config.pid = Some(*first_pid);
+        config.started_at = Some(chrono::Utc::now().timestamp());
+        save_app_config(&config)?;
     }
 
     Ok(())

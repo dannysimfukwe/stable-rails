@@ -367,7 +367,18 @@ async function loadAppInfo(appName) {
       if (rubyEl) rubyEl.textContent = config.ruby || config.ruby_version || "-";
       if (railsEl) railsEl.textContent = config.rails_env || "-";
 
-      if (config.started_at) {
+      // Check if app is actually running
+      const apps = await invoke("list_apps");
+      const appInfo = apps.find((a) => a.name === appName);
+      const isRunning = appInfo && appInfo.status === 'running';
+
+      const runStatus = document.getElementById("run-status");
+      if (runStatus) {
+        runStatus.textContent = isRunning ? "Running" : "Stopped";
+        runStatus.classList.toggle("running", isRunning);
+      }
+
+      if (config.started_at && isRunning) {
         const startTime = config.started_at * 1000;
         const uptimeEl = document.getElementById("run-uptime");
         if (uptimeEl) uptimeEl.textContent = formatUptime(startTime);
@@ -379,6 +390,13 @@ async function loadAppInfo(appName) {
           const uptimeEl = document.getElementById("run-uptime");
           if (uptimeEl) uptimeEl.textContent = formatUptime(startTime);
         }, 1000);
+      } else if (!isRunning) {
+        const uptimeEl = document.getElementById("run-uptime");
+        if (uptimeEl) uptimeEl.textContent = "Not running";
+        if (state.uptimeTimer) {
+          clearInterval(state.uptimeTimer);
+          state.uptimeTimer = null;
+        }
       }
     }
   } catch (e) {
@@ -624,7 +642,11 @@ async function handleAppAction(action, name) {
       const portEl = document.getElementById("run-port");
       if (portEl) portEl.textContent = app.port || 3000;
 
-      const isRunning = state.runningApps.includes(app.name);
+      // Refresh running state from server
+      const apps = await invoke("list_apps");
+      const updatedApp = apps.find((a) => a.name === name);
+      const isRunning = updatedApp ? updatedApp.status === 'running' : false;
+
       const runStatus = document.getElementById("run-status");
       if (runStatus) {
         runStatus.textContent = isRunning ? "Running" : "Stopped";

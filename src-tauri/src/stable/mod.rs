@@ -7,5 +7,7 @@ pub mod remove;
 pub mod restart;
 pub mod secure;
 pub mod start;
+pub mod start_all;
 pub mod stop;
+pub mod stop_all;
 pub mod utils;

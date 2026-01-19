@@ -192,6 +192,24 @@ async function loadApps() {
   }
 }
 
+async function loadAppsWithRunningState() {
+  setStatus("Syncing apps...");
+  try {
+    const apps = await invoke("list_apps");
+    state.apps = apps;
+    
+    // Update runningApps based on actual server state
+    state.runningApps = apps.filter(app => app.status === 'running').map(app => app.name);
+    
+    renderApps(apps);
+    updateButtonStates();
+    setStatus("Ready");
+  } catch (error) {
+    setStatus("Error loading apps", true);
+    showToast(String(error));
+  }
+}
+
 async function runDoctor() {
   setStatus("Running doctor...");
   try {
@@ -221,7 +239,7 @@ async function addApp() {
       addBtn.style.display = "none";
     }
     showToast("App added");
-    loadApps();
+    loadAppsWithRunningState();
   } catch (error) {
     setStatus("Add failed", true);
     showToast(String(error));
@@ -283,7 +301,7 @@ let appCreationCheckInterval = null;
 function startAppCreationChecker() {
   if (appCreationCheckInterval) return;
   appCreationCheckInterval = setInterval(() => {
-    loadApps();
+    loadAppsWithRunningState();
   }, 2000);
 }
 
@@ -510,7 +528,7 @@ async function handleAppAction(action, name) {
     try {
       const confirmed = await invoke("confirm_dialog", {
         title: "Remove App",
-        message: `Remove ${name}? This deletes the folder from ~/.stable_apps.`
+        message: `Remove ${name}? This deletes the folder from ~/StableCaddy/projects.`
       });
       if (!confirmed) return;
     } catch (error) {
@@ -589,41 +607,7 @@ async function handleAppAction(action, name) {
   try {
     await invoke(command, { name });
     showToast(`${name} ${action}ed`);
-
-    if (action === "start") {
-      const app = state.apps.find((entry) => entry.name === name);
-      if (app) {
-        if (!state.runningApps.includes(app.name)) {
-          state.runningApps.push(app.name);
-        }
-        loadApps();
-        showRunView(app);
-      }
-    } else if (action === "stop") {
-      state.runningApps = state.runningApps.filter(n => n !== name);
-      loadApps();
-      if (state.currentApp && state.currentApp.name === name) {
-        const runStatus = document.getElementById("run-status");
-        if (runStatus) {
-          runStatus.textContent = "Stopped";
-          runStatus.classList.remove("running");
-        }
-      }
-      if (state.runningApps.length > 0 && state.currentApp && state.currentApp.name === name) {
-        switchView("apps");
-      } else if (state.runningApps.length === 0 || !state.runningApps.includes(state.currentApp?.name)) {
-        switchView("apps");
-      }
-      setStatus("Ready");
-    } else if (action === "restart") {
-      loadApps();
-    } else if (action === "remove") {
-      state.runningApps = state.runningApps.filter(n => n !== name);
-      loadApps();
-      setStatus("Ready");
-    } else {
-      loadApps();
-    }
+    await loadAppsWithRunningState();
   } catch (error) {
     setStatus(`${action} failed`, true);
     showToast(`${action} failed: ${String(error)}`);
@@ -716,42 +700,48 @@ function wireEvents() {
   });
 
   document.querySelector("#start-all")?.addEventListener("click", async () => {
-    const stoppedApps = state.apps.filter(app => !state.runningApps.includes(app.name));
-    if (!stoppedApps.length) {
-      showToast("No stopped apps to start");
-      return;
-    }
     setStatus("Starting all apps...");
-    for (const app of stoppedApps) {
-      try {
-        await invoke("start_app", { name: app.name });
-        if (!state.runningApps.includes(app.name)) {
-          state.runningApps.push(app.name);
-        }
-      } catch (error) {
-        showToast(`Failed to start ${app.name}`);
-      }
+    try {
+      await invoke("start_all_apps");
+      showToast("Starting all apps (10s boot time)...");
+    } catch (error) {
+      showToast(`Failed: ${error}`);
     }
-    showToast("Started all apps");
-    loadApps();
+    // Poll for status during the 10s boot
+    let checks = 0;
+    const checkInterval = setInterval(async () => {
+      checks++;
+      setStatus(`Waiting for apps to boot... (${checks * 2}s)`);
+      await loadAppsWithRunningState();
+      // Stop checking after 10 seconds (5 checks of 2s)
+      if (checks >= 5) {
+        clearInterval(checkInterval);
+        setStatus("Ready");
+      }
+    }, 2000);
   });
 
   document.querySelector("#stop-all")?.addEventListener("click", async () => {
-    if (!state.runningApps.length) {
-      showToast("No running apps");
-      return;
-    }
     setStatus("Stopping all apps...");
-    for (const name of state.runningApps) {
-      try {
-        await invoke("stop_app", { name });
-      } catch (error) {
-        showToast(`Failed to stop ${name}`);
-      }
+    try {
+      await invoke("stop_all_apps");
+      showToast("Stopping all apps...");
+    } catch (error) {
+      showToast(`Failed: ${error}`);
     }
-    state.runningApps = [];
-    showToast("Stopped all apps");
-    loadApps();
+    // Don't wait - the command runs in background
+    setTimeout(loadAppsWithRunningState, 1000);
+  });
+
+  document.querySelector("#stop-all")?.addEventListener("click", async () => {
+    setStatus("Stopping all apps...");
+    try {
+      await invoke("stop_all_apps");
+      showToast("Stopped all apps");
+    } catch (error) {
+      showToast(`Failed: ${error}`);
+    }
+    await loadAppsWithRunningState();
     switchView("apps");
   });
 
@@ -821,6 +811,17 @@ function wireEvents() {
     if (logsOutput) logsOutput.textContent = "No logs yet.";
   });
 
+  document.getElementById("bundle-install")?.addEventListener("click", async () => {
+    if (!state.currentApp) return;
+    try {
+      showToast("Running bundle install...");
+      const result = await invoke("bundle_install", { name: state.currentApp.name });
+      showToast("Bundle install complete");
+    } catch (e) {
+      showToast(`Bundle install failed: ${e}`);
+    }
+  });
+
   document.getElementById("save-settings")?.addEventListener("click", async () => {
     if (!state.currentApp) return;
     const env = document.getElementById("setting-rails-env")?.value;
@@ -851,7 +852,7 @@ function wireEvents() {
   }
 
   if (appsFolder) {
-    appsFolder.textContent = "~/.stable_apps";
+    appsFolder.textContent = "~/StableCaddy/projects";
   }
 }
 
@@ -861,17 +862,17 @@ async function loadAppsFolder() {
     const folder = await invoke("apps_folder");
     if (appsFolder) appsFolder.textContent = folder;
   } catch (error) {
-    if (appsFolder) appsFolder.textContent = "~/.stable_apps";
+    if (appsFolder) appsFolder.textContent = "~/StableCaddy/projects";
   }
 }
 
 window.addEventListener("DOMContentLoaded", () => {
   wireEvents();
-  loadApps();
+  loadAppsWithRunningState();
   loadAppsFolder();
 
   setTimeout(() => {
-    loadApps();
+    loadAppsWithRunningState();
   }, 600);
 
   resetActivity();

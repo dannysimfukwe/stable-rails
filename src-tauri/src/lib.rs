@@ -80,8 +80,22 @@ fn start_app(name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn start_all_apps() {
+    std::thread::spawn(|| {
+        let _ = stable::start_all::run();
+    });
+}
+
+#[tauri::command]
 fn stop_app(name: String) -> Result<(), String> {
     stable::stop::run(&name).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn stop_all_apps() {
+    std::thread::spawn(|| {
+        let _ = stable::stop_all::run();
+    });
 }
 
 #[tauri::command]
@@ -248,24 +262,36 @@ fn redis_scan(name: String, pattern: String) -> Result<Vec<String>, String> {
 #[tauri::command]
 fn save_app_settings(
     name: String,
-    rails_env: String,
+    railsEnv: String,
     port: i32,
-    custom_domain: String,
-    tls_enabled: bool,
-    caddy_enabled: bool,
+    tlsEnabled: bool,
+    caddyEnabled: bool,
 ) -> Result<(), String> {
     let mut config = stable::config::load_app_config(&name).map_err(|err| err.to_string())?;
-    config.rails_env = rails_env;
+    config.rails_env = railsEnv;
     config.port = port as u16;
-    if !custom_domain.is_empty() {
-        config.custom_domain = Some(custom_domain.clone());
-        config.domain = custom_domain;
-    }
-    config.tls_enabled = tls_enabled;
-    config.caddy_enabled = caddy_enabled;
-    stable::config::save_app_config(&name, &config).map_err(|err| err.to_string())?;
-    stable::config::update_global_caddyfile().map_err(|err| err.to_string())?;
+    config.tls_enabled = tlsEnabled;
+    config.caddy_enabled = caddyEnabled;
+    stable::config::save_app_config(&config).map_err(|err| err.to_string())?;
+    stable::config::update_caddyfile().map_err(|err| err.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+fn bundle_install(name: String) -> Result<String, String> {
+    let config = stable::config::load_app_config(&name).map_err(|err| err.to_string())?;
+    let app_path = config.path;
+    let output = std::process::Command::new("bundle")
+        .arg("install")
+        .current_dir(&app_path)
+        .output()
+        .map_err(|err| err.to_string())?;
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if !output.status.success() {
+        return Err(format!("Bundle install failed:\n{}", stderr));
+    }
+    Ok(stdout)
 }
 
 fn open_main_window(app: &AppHandle) {
@@ -323,7 +349,9 @@ pub fn run() {
             remove_app,
             create_app,
             start_app,
+            start_all_apps,
             stop_app,
+            stop_all_apps,
             restart_app,
             secure_app,
             doctor,
@@ -337,7 +365,8 @@ pub fn run() {
             db_tables,
             db_query,
             redis_scan,
-            save_app_settings
+            save_app_settings,
+            bundle_install
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

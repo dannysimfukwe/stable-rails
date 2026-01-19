@@ -351,10 +351,6 @@ function showRunView(app) {
   if (state.uptimeTimer) {
     clearInterval(state.uptimeTimer);
   }
-  state.uptimeTimer = setInterval(() => {
-    const uptimeEl = document.getElementById("run-uptime");
-    if (uptimeEl) uptimeEl.textContent = formatUptime(Date.now());
-  }, 1000);
   
   switchView("run");
   switchAppTab("overview");
@@ -368,8 +364,22 @@ async function loadAppInfo(appName) {
     if (config) {
       const rubyEl = document.getElementById("run-ruby-version");
       const railsEl = document.getElementById("run-rails-version");
-      if (rubyEl) rubyEl.textContent = config.ruby_version || "-";
-      if (railsEl) railsEl.textContent = config.rails_version || "-";
+      if (rubyEl) rubyEl.textContent = config.ruby || config.ruby_version || "-";
+      if (railsEl) railsEl.textContent = config.rails_env || "-";
+
+      if (config.started_at) {
+        const startTime = config.started_at * 1000;
+        const uptimeEl = document.getElementById("run-uptime");
+        if (uptimeEl) uptimeEl.textContent = formatUptime(startTime);
+        
+        if (state.uptimeTimer) {
+          clearInterval(state.uptimeTimer);
+        }
+        state.uptimeTimer = setInterval(() => {
+          const uptimeEl = document.getElementById("run-uptime");
+          if (uptimeEl) uptimeEl.textContent = formatUptime(startTime);
+        }, 1000);
+      }
     }
   } catch (e) {
     console.log("Could not load app info:", e);

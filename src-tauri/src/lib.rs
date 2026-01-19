@@ -144,9 +144,9 @@ async fn confirm_dialog(
     title: String,
     message: String,
 ) -> Result<bool, String> {
-    use tauri_plugin_dialog::DialogExt;
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
     let dialog = window.dialog();
-    Ok(dialog.message(message).title(title).blocking_show())
+    Ok(dialog.message(message).title(title).buttons(MessageDialogButtons::YesNo).blocking_show())
 }
 
 #[tauri::command]
@@ -166,17 +166,29 @@ fn rails_console(name: String, command: String) -> Result<String, String> {
     let app_path = stable::utils::apps_folder().join(&name);
     let (ruby_path, bundle_path) =
         stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|e| e.to_string())?;
+
+    let script_path = "/tmp/stable_console.rb";
+    let wrapped_command = if command.trim().starts_with("puts") || command.trim().starts_with("p ") {
+        command.clone()
+    } else {
+        format!("puts ({})", command)
+    };
+    std::fs::write(script_path, &wrapped_command).map_err(|e| e.to_string())?;
+
     let output = std::process::Command::new("/bin/zsh")
         .arg("-lc")
         .arg(&format!(
-            "cd '{}' && '{}' '{}' exec rails runner '{}'",
+            "cd '{}' && '{}' '{}' exec rails runner {}",
             app_path.display(),
             ruby_path.display(),
             bundle_path.display(),
-            command
+            script_path
         ))
         .output()
-        .map_err(|err| err.to_string())?;
+        .map_err(|e| e.to_string())?;
+
+    let _ = std::fs::remove_file(script_path).map_err(|e| e.to_string());
+
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     if !stderr.is_empty() && !stderr.contains("Booting") {

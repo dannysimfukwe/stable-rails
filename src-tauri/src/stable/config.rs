@@ -10,6 +10,8 @@ pub struct AppConfig {
     pub path: PathBuf,
     pub port: u16,
     pub ruby: Option<String>,
+    pub ruby_version: Option<String>,
+    pub rails_version: Option<String>,
     pub rails_env: String,
     pub tls_enabled: bool,
     pub caddy_enabled: bool,
@@ -25,6 +27,8 @@ impl Default for AppConfig {
             path: PathBuf::new(),
             port: 3000,
             ruby: None,
+            ruby_version: None,
+            rails_version: None,
             rails_env: "development".to_string(),
             tls_enabled: true,
             caddy_enabled: true,
@@ -37,6 +41,52 @@ impl Default for AppConfig {
 
 pub fn apps_folder() -> PathBuf {
     Path::new("~/StableCaddy/projects").expand_home()
+}
+
+fn detect_ruby_version(app_path: &Path) -> Option<String> {
+    let ruby_version_file = app_path.join(".ruby-version");
+    if ruby_version_file.exists() {
+        if let Ok(content) = fs::read_to_string(&ruby_version_file) {
+            let version = content.trim().to_string();
+            return Some(version.strip_prefix("ruby-").unwrap_or(&version).to_string());
+        }
+    }
+    None
+}
+
+fn detect_rails_version(app_path: &Path) -> Option<String> {
+    let gemfile = app_path.join("Gemfile");
+    if gemfile.exists() {
+        if let Ok(content) = fs::read_to_string(&gemfile) {
+            for line in content.lines() {
+                if line.contains("gem 'rails'") || line.contains("gem \"rails\"") {
+                    if let Some(pos) = line.find("rails'") {
+                        let after = &line[pos + 6..];
+                        if let Some(vpos) = after.find(',') {
+                            let version = &after[..vpos].trim();
+                            return Some(version.trim_matches('\'').trim_matches('"').to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let rails_version_rb = app_path.join("config/application.rb");
+    if rails_version_rb.exists() {
+        if let Ok(content) = fs::read_to_string(&rails_version_rb) {
+            for line in content.lines() {
+                if line.contains("RAILS_VERSION") {
+                    if let Some(pos) = line.find("=") {
+                        let version = line[pos + 1..].trim();
+                        return Some(version.trim_matches('\'').trim_matches('"').to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }
 
 fn load_yaml(path: &Path) -> Option<Yaml> {
@@ -143,6 +193,16 @@ pub fn load_app_config(app_name: &str) -> Result<AppConfig> {
     } else {
         config.path = app_folder.clone();
     }
+
+    if config.path.as_os_str().is_empty() {
+        config.path = app_folder.clone();
+    }
+
+    if config.ruby.is_none() {
+        config.ruby = detect_ruby_version(&config.path);
+    }
+    config.ruby_version = detect_ruby_version(&config.path);
+    config.rails_version = detect_rails_version(&config.path);
 
     Ok(config)
 }

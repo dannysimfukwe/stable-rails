@@ -5,7 +5,7 @@ use std::process::{Child, Command, ExitStatus, Output};
 
 /// Returns the folder where Rails apps are stored
 pub fn apps_folder() -> PathBuf {
-    Path::new("~/.stable_apps").expanduser()
+    Path::new("~/StableCaddy/projects").expanduser()
 }
 
 /// Runs a command and returns a Child

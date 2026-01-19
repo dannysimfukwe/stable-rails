@@ -1,6 +1,4 @@
-use crate::stable::config::{
-    AppConfig, find_available_port_for_app, save_app_config, update_global_caddyfile,
-};
+use crate::stable::config::{AppConfig, next_available_port, save_app_config, update_caddyfile};
 use crate::stable::utils::{
     apps_folder, ensure_hosts_entry, run_shell_output, shell_escape, slugify_name,
 };
@@ -29,7 +27,7 @@ where
         anyhow::bail!("App '{}' already exists", slug_name);
     }
 
-    let port = find_available_port_for_app(&slug_name)?;
+    let port = next_available_port();
     log(&format!("Assigning port {} to this app", port));
 
     let escaped_name = shell_escape(&slug_name);
@@ -47,10 +45,7 @@ where
     let key_path = app_path.join("key.pem");
 
     let domain = format!("{}.test", slug_name);
-    let hosts_added = ensure_hosts_entry(&domain)?;
-    if hosts_added {
-        log(&format!("Added hosts entry for {}", domain));
-    }
+    let _ = ensure_hosts_entry(&domain)?;
 
     if !cert_path.exists() || !key_path.exists() {
         progress("Generating TLS certificates...");
@@ -75,16 +70,17 @@ where
 
     let mut app_config = AppConfig::default();
     app_config.name = slug_name.clone();
+    app_config.path = app_path.clone();
     app_config.port = port;
     app_config.domain = domain.clone();
     app_config.rails_env = "development".to_string();
     app_config.tls_enabled = true;
     app_config.caddy_enabled = true;
-    save_app_config(&slug_name, &app_config)?;
+    save_app_config(&app_config)?;
     log(&format!("Saved config for {} on port {}", slug_name, port));
 
     progress("Updating Caddy configuration...");
-    update_global_caddyfile()?;
+    update_caddyfile()?;
     log("Caddy configuration updated.");
 
     progress("Stable app ready.");

@@ -3529,6 +3529,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "dirs 5.0.1",
+ "lazy_static",
  "regex",
  "rfd 0.14.1",
  "serde",

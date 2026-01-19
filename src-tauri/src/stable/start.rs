@@ -1,10 +1,13 @@
-use crate::stable::config::{apps_folder, load_all_app_configs, load_app_config};
-use crate::stable::utils::{ensure_hosts_entry, run_shell, run_shell_spawn};
+use crate::stable::config::{find_pids_by_port, load_app_config};
+use crate::stable::ruby_manager::ensure_ruby_for_app;
+use crate::stable::utils::ensure_hosts_entry;
 use anyhow::Result;
-use std::fs;
+use std::process::Command;
+use std::time::Duration;
 
 pub fn run(app_name: &str) -> Result<()> {
-    let app_path = apps_folder().join(app_name);
+    let config = load_app_config(app_name)?;
+    let app_path = config.path.clone();
 
     if !app_path.exists() {
         anyhow::bail!("App folder '{}' does not exist", app_path.display());
@@ -15,70 +18,36 @@ pub fn run(app_name: &str) -> Result<()> {
         anyhow::bail!("Missing bin/rails in {}", app_path.display());
     }
 
-    let config = load_app_config(app_name)?;
     let port = config.port;
 
     let domain = format!("{}.test", app_name);
-    let hosts_added = ensure_hosts_entry(&domain)?;
-    if !hosts_added {
-        let hosts_contents = fs::read_to_string("/etc/hosts").unwrap_or_default();
-        if !hosts_contents.contains(&domain) {
-            anyhow::bail!(
-                "Missing hosts entry for {}. Add `127.0.0.1 {}` to /etc/hosts.",
-                domain,
-                domain
-            );
+    let _ = ensure_hosts_entry(&domain);
+
+    let existing_pids = find_pids_by_port(port);
+    if !existing_pids.is_empty() {
+        for pid in existing_pids {
+            let _ = Command::new("kill").arg("-9").arg(pid.to_string()).output();
         }
+        std::thread::sleep(Duration::from_millis(200));
     }
 
-    run_shell_spawn(&app_path, &format!("./bin/rails server -p {}", port))?;
+    let (ruby_path, bundle_path) = ensure_ruby_for_app(&app_path)?;
 
-    update_global_caddyfile()?;
+    let spawn_result = Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg(format!(
+            "cd '{}' && nohup {} {} exec bin/rails server -p {} > /dev/null 2>&1 &",
+            app_path.display(),
+            ruby_path.display(),
+            bundle_path.display(),
+            port
+        ))
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
 
-    Ok(())
-}
-
-fn update_global_caddyfile() -> Result<()> {
-    let global_caddyfile = apps_folder().join("Caddyfile");
-    let mut content = String::new();
-
-    let all_configs = load_all_app_configs()?;
-
-    for config in all_configs {
-        let domain = format!("{}.test", config.name);
-        let cert_path = apps_folder().join(&config.name).join("cert.pem");
-        let key_path = apps_folder().join(&config.name).join("key.pem");
-
-        content.push_str(&format!("{} {{\n", domain));
-
-        if cert_path.exists() && key_path.exists() {
-            content.push_str(&format!(
-                "    tls {} {}\n",
-                cert_path.display(),
-                key_path.display()
-            ));
-        } else {
-            content.push_str("    tls internal\n");
-        }
-        content.push_str(&format!(
-            "    reverse_proxy 127.0.0.1:{}\n}}\n",
-            config.port
-        ));
-    }
-
-    fs::write(&global_caddyfile, content)?;
-
-    let status = run_shell(
-        &apps_folder(),
-        &format!("caddy reload --config '{}'", global_caddyfile.display()),
-    );
-
-    if let Err(err) = status {
-        let _ = run_shell(
-            &apps_folder(),
-            &format!("caddy start --config '{}'", global_caddyfile.display()),
-        )
-        .map_err(|e| println!("Caddy start warning: {}", e));
+    if let Err(e) = spawn_result {
+        anyhow::bail!("Failed to spawn Rails server: {}", e);
     }
 
     Ok(())

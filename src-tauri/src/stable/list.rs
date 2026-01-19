@@ -1,6 +1,8 @@
-use crate::stable::config::load_app_config;
-use crate::stable::utils::load_apps;
+use crate::stable::config::{apps_folder, is_port_in_use, load_all_app_configs};
 use anyhow::Result;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::Mutex;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct AppInfo {
@@ -10,18 +12,41 @@ pub struct AppInfo {
     pub status: String,
 }
 
+lazy_static::lazy_static! {
+    static ref LOG_FILE: Mutex<PathBuf> = Mutex::new(PathBuf::from("/tmp/stable.log"));
+}
+
+fn log(msg: &str) {
+    let log_path = LOG_FILE.lock().unwrap().clone();
+    let existing = fs::read_to_string(&log_path).unwrap_or_default();
+    let _ = fs::write(&log_path, format!("{}{}\n", existing, msg));
+}
+
 pub fn run() -> Result<Vec<AppInfo>> {
-    let apps = load_apps()?;
+    let apps = load_all_app_configs()?;
+
+    log(&format!("[list_apps] Found {} apps", apps.len()));
+
     let mut app_infos = Vec::new();
 
-    for name in apps {
-        let config = load_app_config(&name).unwrap_or_default();
-        let url = format!("https://{}.test", name);
+    for config in apps {
+        let url = format!("https://{}", config.domain);
+        let port = config.port;
+
+        // Check if port is in use - simple and reliable
+        let running = is_port_in_use(port);
+        let status = if running { "running" } else { "stopped" };
+
+        log(&format!(
+            "[list_apps] {}: port={}, status={}",
+            config.name, port, status
+        ));
+
         app_infos.push(AppInfo {
-            name,
+            name: config.name,
             url,
-            port: config.port,
-            status: "stopped".to_string(),
+            port,
+            status: status.to_string(),
         });
     }
 

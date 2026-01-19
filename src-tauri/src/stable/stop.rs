@@ -1,67 +1,37 @@
-use crate::stable::config::{load_app_config, update_global_caddyfile};
+use crate::stable::config::{
+    apps_folder, find_pids_by_port, load_app_config, save_app_config, update_caddyfile,
+};
 use anyhow::Result;
-use std::ffi::{OsStr, OsString};
-use std::path::Path;
-use sysinfo::{ProcessesToUpdate, System};
-
-fn cmdline_to_string(cmd: &[OsString]) -> String {
-    cmd.iter()
-        .map(|arg| arg.to_string_lossy().to_string())
-        .collect::<Vec<_>>()
-        .join(" ")
-}
+use std::process::Command;
+use std::time::Duration;
 
 pub fn run(app_name: &str) -> Result<()> {
-    let app_path = dirs::home_dir()
-        .expect("Cannot find home directory")
-        .join(".stable_apps")
-        .join(app_name);
+    let config = load_app_config(app_name)?;
+    let port = config.port;
 
-    if !app_path.exists() {
-        anyhow::bail!("App folder '{}' does not exist", app_name);
-    }
+    println!("Stopping app '{}' on port {}", app_name, port);
 
-    let config = load_app_config(app_name).ok();
-    let port = config.as_ref().map(|c| c.port).unwrap_or(3000);
+    // Find and kill processes on this port
+    let pids = find_pids_by_port(port);
 
-    let mut sys = System::new();
-    sys.refresh_processes(ProcessesToUpdate::All, true);
-
-    for process in sys.processes_by_name(OsStr::new("ruby")) {
-        let cmdline = cmdline_to_string(process.cmd());
-        let has_app_name = cmdline.contains(app_name);
-        let has_port = cmdline.contains(&format!("-p {}", port))
-            || cmdline.contains(&format!("--port {}", port));
-
-        if has_app_name && (has_port || cmdline.contains("rails server")) {
-            process.kill();
+    if pids.is_empty() {
+        println!("No process on port {}", port);
+    } else {
+        for pid in &pids {
+            println!("Killing PID {}", pid);
+            let _ = Command::new("kill").arg("-9").arg(pid.to_string()).output();
         }
+        std::thread::sleep(Duration::from_millis(300));
     }
 
-    for process in sys.processes_by_name(OsStr::new("caddy")) {
-        let cmdline = cmdline_to_string(process.cmd());
-        if cmdline.contains(app_name) || cmdline.contains(&format!(":{}", port)) {
-            process.kill();
-        }
-    }
+    // Clear config
+    let mut config = load_app_config(app_name)?;
+    config.pid = None;
+    config.started_at = None;
+    save_app_config(&config)?;
 
-    for process in sys.processes_by_name(OsStr::new(app_name)) {
-        if let Some(cwd) = process.cwd() {
-            if cwd == Path::new(&app_path) {
-                process.kill();
-            }
-        }
-    }
+    update_caddyfile()?;
 
-    for process in sys.processes_by_name(OsStr::new("caddy")) {
-        if let Some(cwd) = process.cwd() {
-            if cwd == Path::new(&app_path) {
-                process.kill();
-            }
-        }
-    }
-
-    update_global_caddyfile()?;
-
+    println!("Stop complete for {}", app_name);
     Ok(())
 }

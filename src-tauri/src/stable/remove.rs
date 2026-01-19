@@ -1,4 +1,4 @@
-use crate::stable::config::{delete_app_config, update_global_caddyfile};
+use crate::stable::config::{delete_app_config, update_caddyfile};
 use crate::stable::utils::{apps_folder, run_shell, run_shell_output};
 use anyhow::{Context, Result};
 use std::fs;
@@ -34,7 +34,7 @@ pub fn run(name: &str) -> Result<()> {
     fs::remove_dir_all(&app_path)
         .with_context(|| format!("Failed to remove {}", app_path.display()))?;
 
-    update_global_caddyfile()?;
+    update_caddyfile()?;
 
     Ok(())
 }

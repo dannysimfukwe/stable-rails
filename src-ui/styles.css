@@ -1704,8 +1704,11 @@ pre {
   background: #0a0e17;
   border-radius: 8px;
   padding: 16px;
+  font-family: "IBM Plex Mono", "SF Mono", "Menlo", monospace;
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .logs-output .log-line {

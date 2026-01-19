@@ -720,6 +720,8 @@ function wireEvents() {
       switchAppTab(tab.dataset.tab);
       if (tab.dataset.tab === "database") {
         loadTables();
+      } else if (tab.dataset.tab === "logs") {
+        loadAppLogs();
       }
     });
   });
@@ -869,6 +871,31 @@ function wireEvents() {
   document.getElementById("run-query")?.addEventListener("click", runSqlQuery);
 
   document.getElementById("redis-scan")?.addEventListener("click", scanRedisKeys);
+
+  async function loadAppLogs() {
+    if (!state.currentApp) return;
+    const logsEl = document.getElementById("logs-output");
+    if (!logsEl) return;
+    
+    logsEl.innerHTML = '<p style="color: var(--ink-soft);">Loading logs...</p>';
+    
+    try {
+      const logs = await invoke("get_app_logs", { name: state.currentApp.name, lines: 100 });
+      if (logsEl) {
+        if (logs && logs.length > 0) {
+          logsEl.innerHTML = logs;
+        } else {
+          logsEl.innerHTML = "No logs found. The app may not have generated any logs yet.";
+        }
+      }
+    } catch (e) {
+      if (logsEl) {
+        logsEl.innerHTML = `Error loading logs: ${e}`;
+      }
+    }
+  }
+
+  document.getElementById("refresh-logs")?.addEventListener("click", loadAppLogs);
 
   document.getElementById("clear-logs")?.addEventListener("click", () => {
     if (logsOutput) logsOutput.textContent = "No logs yet.";

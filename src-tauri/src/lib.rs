@@ -446,6 +446,33 @@ fn extract_short_version(full: &str) -> String {
 }
 
 #[tauri::command]
+fn get_app_logs(name: String, lines: i32) -> Result<String, String> {
+    let app_path = stable::utils::apps_folder().join(&name);
+    let log_path = app_path.join("log").join("development.log");
+    let prod_log_path = app_path.join("log").join("production.log");
+
+    let log_file = if prod_log_path.exists() {
+        prod_log_path
+    } else if log_path.exists() {
+        log_path
+    } else {
+        return Ok("No log file found. Check the app's log/ directory.".to_string());
+    };
+
+    let content = std::fs::read_to_string(&log_file).map_err(|e| e.to_string())?;
+    
+    let all_lines: Vec<&str> = content.lines().collect();
+    let start = if all_lines.len() > lines as usize {
+        all_lines.len() - lines as usize
+    } else {
+        0
+    };
+    
+    let tail_lines = &all_lines[start..];
+    Ok(tail_lines.join("\n"))
+}
+
+#[tauri::command]
 fn install_ruby(version: String) -> Result<String, String> {
     stable::ruby_manager::install_ruby_version(&version)
         .map(|_v| format!("Ruby {} installed", version))
@@ -523,6 +550,7 @@ pub fn run() {
             db_tables,
             db_query,
             redis_scan,
+            get_app_logs,
             save_app_settings,
             bundle_install,
             list_ruby_versions,

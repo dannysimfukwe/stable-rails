@@ -229,21 +229,40 @@ fn db_query(name: String, sql: String) -> Result<QueryResult, String> {
         stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|e| e.to_string())?;
 
     let script_path = "/tmp/stable_query.rb";
+    let sql_escaped = sql.replace('"', "\\\"");
     std::fs::write(
         script_path,
         format!(
             r#"require 'json'
+adapter = ActiveRecord::Base.connection.adapter_name
+sql = "{}"
+table = if sql =~ /FROM\s+[`"']?(\w+)[`"']?/i
+  $1.gsub(/[`"']/, '')
+elsif sql =~ /UPDATE\s+[`"']?(\w+)[`"']?/i
+  $1.gsub(/[`"']/, '')
+elsif sql =~ /INTO\s+[`"']?(\w+)[`"']?/i
+  $1.gsub(/[`"']/, '')
+else
+  sql.split(' ').first.to_s.gsub(/[`"']/, '')
+end
+cols = case
+when adapter =~ /sqlite/i && !table.empty?
+  ActiveRecord::Base.connection.execute("PRAGMA table_info(" + table + ")").to_a.map {{ |r| r["name"] }}
+when adapter =~ /mysql/i && !table.empty?
+  ActiveRecord::Base.connection.execute("DESCRIBE `" + table + "`").to_a.map {{ |r| r[0] }}
+else
+  []
+end
 result = ActiveRecord::Base.connection.execute("{}")
 if result.respond_to?(:columns)
   cols = result.columns.map(&:name)
   rows = result.to_a.map {{ |row| cols.map {{ |c| row[c].to_s }} }}
-  puts JSON.generate(columns: cols, rows: rows)
 else
-  rows = result.to_a.map {{ |r| r.is_a?(Array) ? r.map(&:to_s) : r.to_s }}
-  puts JSON.generate(columns: [], rows: rows)
+  rows = result.to_a.map {{ |r| r.is_a?(Hash) ? cols.map {{ |c| r[c].to_s }} : r.map(&:to_s) }}
 end
+puts JSON.generate(columns: cols, rows: rows)
 "#,
-            sql.replace('"', "\\\"")
+            sql_escaped, sql_escaped
         ),
     ).map_err(|e| e.to_string())?;
 

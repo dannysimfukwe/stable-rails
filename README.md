@@ -30,6 +30,22 @@ gem install stable-cli-rails
 gem "stable-cli-rails"
 ```
 
+## Stable Desktop App
+
+For a native macOS GUI experience, download the Stable Desktop app:
+
+**[Download Stable Desktop for macOS](https://github.com/dannysimfukwe/stable-desktop/releases/latest)**
+
+The desktop app provides:
+- Menu bar tray icon for quick access
+- Native GUI for managing Rails apps
+- Start/stop apps with a click
+- Rails console access
+- Database table viewer
+- App logs viewer
+
+> **Note**: Both the CLI and Desktop app share the same projects directory (`~/StableCaddy/projects`), so you can use either one interchangeably.
+
 ## Platform-Specific Setup
 
 ### macOS

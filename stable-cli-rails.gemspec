@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name          = 'stable-cli-rails'
-  spec.version       = '0.8.5'
+  spec.version       = '0.8.6'
   spec.authors       = ['Danny Simfukwe']
   spec.email         = ['dannysimfukwe@gmail.com']
 

@@ -1067,4 +1067,18 @@ window.addEventListener("DOMContentLoaded", () => {
       activityPanel?.classList.remove("is-busy");
     }
   });
+
+  listen("show-about", () => {
+    document.getElementById("about-modal")?.classList.add("is-visible");
+  });
+
+  document.getElementById("about-close")?.addEventListener("click", () => {
+    document.getElementById("about-modal")?.classList.remove("is-visible");
+  });
+
+  document.getElementById("about-modal")?.addEventListener("click", (e) => {
+    if (e.target.id === "about-modal") {
+      document.getElementById("about-modal")?.classList.remove("is-visible");
+    }
+  });
 });

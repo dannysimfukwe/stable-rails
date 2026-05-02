@@ -384,5 +384,46 @@
         </section>
       </main>
     </div>
+
+    <!-- Add Existing App Modal -->
+    <div class="modal-overlay" id="add-existing-modal">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Add Existing App</h2>
+          <button class="modal-close" id="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="input-field">
+            <label for="modal-app-name">App Name</label>
+            <input id="modal-app-name" placeholder="my-rails-app" />
+          </div>
+          <div class="input-field">
+            <label for="modal-app-path">App Path</label>
+            <input id="modal-app-path" placeholder="Select folder..." readonly />
+            <button class="ghost" id="modal-browse">Browse...</button>
+          </div>
+          <div class="modal-actions">
+            <button class="ghost" id="modal-cancel">Cancel</button>
+            <button class="primary" id="modal-add-app">Add App</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- About Modal -->
+    <div class="modal-overlay" id="about-modal">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>About Stable</h2>
+          <button class="modal-close" id="about-close">&times;</button>
+        </div>
+        <div class="modal-body" style="text-align:center;">
+          <div style="font-size:48px;margin-bottom:16px;">S</div>
+          <p style="font-size:18px;font-weight:600;margin-bottom:8px;">Stable</p>
+          <p style="color:var(--ink-soft);margin-bottom:16px;">Version 0.1.0</p>
+          <p style="color:var(--ink-soft);margin-bottom:8px;">Developed by Danny Simfukwe</p>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

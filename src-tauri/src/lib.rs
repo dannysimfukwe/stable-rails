@@ -1,7 +1,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -167,34 +167,52 @@ fn rails_console(name: String, command: String) -> Result<String, String> {
     let (ruby_path, bundle_path) =
         stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|e| e.to_string())?;
 
-    let script_path = "/tmp/stable_console.rb";
-    let wrapped_command = if command.trim().starts_with("puts") || command.trim().starts_with("p ") {
-        command.clone()
+    let trimmed = command.trim().to_lowercase();
+    if trimmed.starts_with("rails ") || trimmed == "c" || trimmed == "console" {
+        let output = std::process::Command::new("/bin/zsh")
+            .arg("-lc")
+            .arg(&format!(
+                "cd '{}' && '{}' '{}' exec rails console",
+                app_path.display(),
+                ruby_path.display(),
+                bundle_path.display()
+            ))
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Ok(format!("{}{}", stdout, stderr))
     } else {
-        format!("puts ({})", command)
-    };
-    std::fs::write(script_path, &wrapped_command).map_err(|e| e.to_string())?;
+        let script_path = "/tmp/stable_console.rb";
+        let wrapped = if command.trim().starts_with("puts") || command.trim().starts_with("p ") {
+            command.clone()
+        } else {
+            format!("puts ({})", command)
+        };
+        std::fs::write(script_path, &wrapped).map_err(|e| e.to_string())?;
 
-    let output = std::process::Command::new("/bin/zsh")
-        .arg("-lc")
-        .arg(&format!(
-            "cd '{}' && '{}' '{}' exec rails runner {}",
-            app_path.display(),
-            ruby_path.display(),
-            bundle_path.display(),
-            script_path
-        ))
-        .output()
-        .map_err(|e| e.to_string())?;
+        let output = std::process::Command::new("/bin/zsh")
+            .arg("-lc")
+            .arg(&format!(
+                "cd '{}' && '{}' '{}' exec rails runner -e development {}",
+                app_path.display(),
+                ruby_path.display(),
+                bundle_path.display(),
+                script_path
+            ))
+            .output()
+            .map_err(|e| e.to_string())?;
 
-    let _ = std::fs::remove_file(script_path).map_err(|e| e.to_string());
+        let _ = std::fs::remove_file(script_path).map_err(|e| e.to_string());
 
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    if !stderr.is_empty() && !stderr.contains("Booting") {
-        Ok(format!("{}\n{}", stdout, stderr))
-    } else {
-        Ok(stdout)
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        if !stderr.is_empty() && !stderr.contains("Booting") {
+            Ok(format!("{}\n{}", stdout, stderr))
+        } else {
+            Ok(stdout)
+        }
     }
 }
 
@@ -494,8 +512,9 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle();
             let show_item = MenuItem::new(app, "Show Stable", true, None::<&str>)?;
+            let about_item = MenuItem::new(app, "About Stable", true, None::<&str>)?;
             let quit_item = MenuItem::new(app, "Quit", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let tray_menu = Menu::with_items(app, &[&show_item, &about_item, &quit_item])?;
 
             let tray_handle = handle.clone();
             let mut tray_builder = TrayIconBuilder::new()
@@ -503,6 +522,9 @@ pub fn run() {
                 .tooltip("Stable")
                 .on_menu_event(move |tray, event| match event.id().as_ref() {
                     "Show Stable" => open_main_window(tray.app_handle()),
+                    "About Stable" => {
+                        let _ = tray.app_handle().emit("show-about", ());
+                    }
                     "Quit" => tray.app_handle().exit(0),
                     _ => {}
                 })

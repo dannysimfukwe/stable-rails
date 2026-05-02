@@ -1,4 +1,4 @@
-use crate::stable::config::{apps_folder, is_port_in_use, load_all_app_configs};
+use crate::stable::config::{apps_folder, is_app_running, load_all_app_configs};
 use anyhow::Result;
 use std::fs;
 use std::path::PathBuf;
@@ -34,7 +34,7 @@ pub fn run() -> Result<Vec<AppInfo>> {
         let port = config.port;
 
         // Check if port is in use - simple and reliable
-        let running = is_port_in_use(port);
+        let running = is_app_running(port, &config.path);
         let status = if running { "running" } else { "stopped" };
 
         log(&format!(

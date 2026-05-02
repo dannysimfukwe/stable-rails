@@ -8,11 +8,26 @@ struct Check {
     message: String,
 }
 
+fn run_check(name: &str, cmd: &str, args: &[&str]) -> Check {
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg(&format!("{} {}", cmd, args.join(" ")))
+        .output();
+
+    let found = output.map(|o| o.status.success()).unwrap_or(false);
+    Check {
+        name: name.to_string(),
+        passed: found,
+        message: if found { "Found".to_string() } else { "Not found".to_string() },
+    }
+}
+
 pub fn run() -> Result<String> {
     let mut checks = Vec::new();
 
-    let homebrew = std::process::Command::new("which")
-        .arg("brew")
+    let homebrew = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg("which brew")
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
@@ -26,8 +41,9 @@ pub fn run() -> Result<String> {
         },
     });
 
-    let caddy = std::process::Command::new("which")
-        .arg("caddy")
+    let caddy = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg("which caddy")
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
@@ -41,8 +57,9 @@ pub fn run() -> Result<String> {
         },
     });
 
-    let mkcert = std::process::Command::new("which")
-        .arg("mkcert")
+    let mkcert = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg("which mkcert")
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
@@ -56,8 +73,9 @@ pub fn run() -> Result<String> {
         },
     });
 
-    let rvm = std::process::Command::new("which")
-        .arg("rvm")
+    let rvm = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg("which rvm")
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
@@ -71,9 +89,9 @@ pub fn run() -> Result<String> {
         },
     });
 
-    let caddy_running = std::process::Command::new("pgrep")
-        .arg("-x")
-        .arg("caddy")
+    let caddy_running = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg("pgrep -x caddy")
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);

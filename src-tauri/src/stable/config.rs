@@ -268,6 +268,10 @@ pub fn is_port_in_use(port: u16) -> bool {
     std::net::TcpListener::bind(("127.0.0.1", port)).is_err()
 }
 
+pub fn is_app_running(port: u16, app_path: &std::path::Path) -> bool {
+    !find_pids_by_port_for_app(port, app_path).is_empty()
+}
+
 pub fn find_pids_by_port(port: u16) -> Vec<i32> {
     let output = std::process::Command::new("lsof")
         .args(&["-i", &format!(":{}", port), "-t"])
@@ -283,6 +287,27 @@ pub fn find_pids_by_port(port: u16) -> Vec<i32> {
         }
         Err(_) => Vec::new(),
     }
+}
+
+pub fn find_pids_by_port_for_app(port: u16, app_path: &std::path::Path) -> Vec<i32> {
+    let pids = find_pids_by_port(port);
+    let app_path_str = app_path.display().to_string();
+
+    pids.into_iter().filter(|pid| {
+        let output = std::process::Command::new("lsof")
+            .args(&["-p", &pid.to_string()])
+            .output();
+
+        match output {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                stdout.lines().any(|line| {
+                    line.contains(" cwd ") && line.ends_with(&app_path_str)
+                })
+            }
+            Err(_) => false,
+        }
+    }).collect()
 }
 
 pub fn port_available(port: u16) -> bool {
@@ -310,21 +335,11 @@ pub fn update_caddyfile() -> Result<()> {
         }
 
         let cert_path = certs_folder.join(format!("{}.test.pem", config.name));
-        let key_path = certs_folder.join(format!("{}-key.pem", config.name));
+        let key_path = certs_folder.join(format!("{}.test-key.pem", config.name));
 
         content.push_str(&format!("{} {{\n", config.domain));
 
-        if config.tls_enabled {
-            if cert_path.exists() && key_path.exists() {
-                content.push_str(&format!(
-                    "    tls {} {}\n",
-                    cert_path.display(),
-                    key_path.display()
-                ));
-            } else {
-                content.push_str("    tls internal\n");
-            }
-        }
+        content.push_str("    tls internal\n");
         content.push_str(&format!(
             "    reverse_proxy 127.0.0.1:{}\n}}\n",
             config.port

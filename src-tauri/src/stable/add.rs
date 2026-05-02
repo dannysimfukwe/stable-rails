@@ -35,7 +35,7 @@ pub fn run(folder: &str) -> Result<()> {
 
     let certs_folder = PathBuf::from("/Users/dannysimfukwe/StableCaddy/certs");
     let cert_path = certs_folder.join(format!("{}.test.pem", app_name));
-    let key_path = certs_folder.join(format!("{}-key.pem", app_name));
+    let key_path = certs_folder.join(format!("{}.test-key.pem", app_name));
 
     if !cert_path.exists() || !key_path.exists() {
         let escaped_name = shell_escape(&app_name);

@@ -34,7 +34,7 @@ gem "stable-cli-rails"
 
 For a native macOS GUI experience, download the Stable Desktop app:
 
-**[Download Stable Desktop for macOS](https://github.com/dannysimfukwe/stable-desktop/releases/latest)**
+**[Download Stable Desktop for macOS](https://github.com/dannysimfukwe/stable-rails/releases/latest)**
 
 The desktop app provides:
 - Menu bar tray icon for quick access

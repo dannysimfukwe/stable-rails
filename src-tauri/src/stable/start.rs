@@ -1,4 +1,4 @@
-use crate::stable::config::{find_pids_by_port, find_pids_by_port_for_app, is_port_in_use, load_app_config, next_available_port, save_app_config};
+use crate::stable::config::{find_pids_by_port, find_pids_by_port_for_app, is_port_in_use, load_app_config, next_available_port, save_app_config, update_caddyfile};
 use crate::stable::ruby_manager::ensure_ruby_for_app;
 use crate::stable::utils::ensure_hosts_entry;
 use anyhow::Result;
@@ -19,7 +19,7 @@ pub fn run(app_name: &str) -> Result<()> {
     }
 
     let mut port = config.port;
-    let domain = format!("{}.test", app_name);
+    let mut domain = config.domain.clone();
     let _ = ensure_hosts_entry(&domain)?;
 
     let existing_pids = find_pids_by_port(port);
@@ -30,6 +30,7 @@ pub fn run(app_name: &str) -> Result<()> {
             let mut updated_config = config.clone();
             updated_config.port = port;
             save_app_config(&updated_config)?;
+            update_caddyfile()?;
         } else {
             for pid in same_app_pids {
                 let _ = Command::new("kill").arg("-9").arg(pid.to_string()).output();
@@ -43,6 +44,7 @@ pub fn run(app_name: &str) -> Result<()> {
         let mut updated_config = load_app_config(app_name)?;
         updated_config.port = port;
         save_app_config(&updated_config)?;
+        update_caddyfile()?;
     }
 
     let (ruby_path, bundle_path) = ensure_ruby_for_app(&app_path)?;

@@ -72,6 +72,7 @@ pub fn run() -> Result<()> {
                 let mut updated_config = load_app_config(&app_name)?;
                 updated_config.port = port;
                 save_app_config(&updated_config)?;
+                update_caddyfile()?;
                 log(&format!(
                     "[start_all] {} reassigned to port {} (was in use)",
                     app_name, port
@@ -84,6 +85,7 @@ pub fn run() -> Result<()> {
             let mut updated_config = load_app_config(&app_name)?;
             updated_config.port = port;
             save_app_config(&updated_config)?;
+            update_caddyfile()?;
             log(&format!(
                 "[start_all] {} assigned new port {}",
                 app_name, port

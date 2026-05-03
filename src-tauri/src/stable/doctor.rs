@@ -156,13 +156,43 @@ pub fn run() -> Result<String> {
         .unwrap_or(false);
 
     let caddy_running_check = if !caddy_running && caddy {
+        let plist_path = std::path::PathBuf::from("/Users/dannysimfukwe/Library/LaunchAgents/com.stable.caddy.plist");
+        if !plist_path.exists() {
+            let plist_content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.stable.caddy</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/caddy</string>
+        <string>run</string>
+        <string>--adapter</string>
+        <string>caddyfile</string>
+        <string>--config</string>
+        <string>/Users/dannysimfukwe/StableCaddy/projects/Caddyfile</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/caddy-stable.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/caddy-stable.err</string>
+</dict>
+</plist>
+"#;
+            let _ = std::fs::write(&plist_path, plist_content);
+        }
         match std::process::Command::new("/bin/zsh")
             .arg("-lc")
-            .arg("cd ~/StableCaddy/projects && caddy run --adapter caddyfile --config Caddyfile &")
+            .arg("launchctl load ~/Library/LaunchAgents/com.stable.caddy.plist")
             .output()
         {
             Ok(_) => {
-                install_messages.push("Caddy started".to_string());
+                install_messages.push("Caddy started via LaunchAgent".to_string());
                 true
             }
             Err(_) => false,

@@ -154,10 +154,26 @@ pub fn run() -> Result<String> {
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
+
+    let caddy_running_check = if !caddy_running && caddy {
+        match std::process::Command::new("/bin/zsh")
+            .arg("-lc")
+            .arg("cd ~/StableCaddy/projects && caddy run --adapter caddyfile --config Caddyfile &")
+            .output()
+        {
+            Ok(_) => {
+                install_messages.push("Caddy started".to_string());
+                true
+            }
+            Err(_) => false,
+        }
+    } else {
+        caddy_running
+    };
     checks.push(Check {
         name: "Caddy running".to_string(),
-        passed: caddy_running,
-        message: if caddy_running {
+        passed: caddy_running_check,
+        message: if caddy_running_check {
             "Running".to_string()
         } else {
             "Not running".to_string()

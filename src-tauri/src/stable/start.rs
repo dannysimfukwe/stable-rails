@@ -1,4 +1,4 @@
-use crate::stable::config::{find_pids_by_port, load_app_config, save_app_config};
+use crate::stable::config::{find_pids_by_port, find_pids_by_port_for_app, is_port_in_use, load_app_config, next_available_port, save_app_config};
 use crate::stable::ruby_manager::ensure_ruby_for_app;
 use crate::stable::utils::ensure_hosts_entry;
 use anyhow::Result;
@@ -18,17 +18,31 @@ pub fn run(app_name: &str) -> Result<()> {
         anyhow::bail!("Missing bin/rails in {}", app_path.display());
     }
 
-    let port = config.port;
-
+    let mut port = config.port;
     let domain = format!("{}.test", app_name);
-    let _ = ensure_hosts_entry(&domain);
+    let _ = ensure_hosts_entry(&domain)?;
 
     let existing_pids = find_pids_by_port(port);
     if !existing_pids.is_empty() {
-        for pid in existing_pids {
-            let _ = Command::new("kill").arg("-9").arg(pid.to_string()).output();
+        let same_app_pids = find_pids_by_port_for_app(port, &app_path);
+        if same_app_pids.is_empty() {
+            port = next_available_port();
+            let mut updated_config = config.clone();
+            updated_config.port = port;
+            save_app_config(&updated_config)?;
+        } else {
+            for pid in same_app_pids {
+                let _ = Command::new("kill").arg("-9").arg(pid.to_string()).output();
+            }
+            std::thread::sleep(Duration::from_millis(200));
         }
-        std::thread::sleep(Duration::from_millis(200));
+    }
+
+    if is_port_in_use(port) {
+        port = next_available_port();
+        let mut updated_config = load_app_config(app_name)?;
+        updated_config.port = port;
+        save_app_config(&updated_config)?;
     }
 
     let (ruby_path, bundle_path) = ensure_ruby_for_app(&app_path)?;
@@ -49,10 +63,8 @@ pub fn run(app_name: &str) -> Result<()> {
         anyhow::bail!("Failed to spawn Rails server: {}", e);
     }
 
-    // Wait for the server to start and bind to the port
     std::thread::sleep(Duration::from_secs(3));
 
-    // Check if the app is running and save config
     let pids = find_pids_by_port(port);
     if let Some(first_pid) = pids.first() {
         let mut config = load_app_config(app_name)?;

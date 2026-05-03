@@ -1,5 +1,6 @@
 use crate::stable::config::{
-    load_all_app_configs, load_app_config, save_app_config, update_caddyfile,
+    find_pids_by_port, find_pids_by_port_for_app, is_port_in_use, load_all_app_configs, load_app_config,
+    next_available_port, save_app_config, update_caddyfile,
 };
 use crate::stable::ruby_manager::ensure_ruby_for_app;
 use anyhow::Result;
@@ -39,10 +40,12 @@ pub fn run() -> Result<()> {
     log(&format!("[start_all] Found {} apps", configs.len()));
 
     let mut started = Vec::new();
+    let mut used_ports: Vec<u16> = Vec::new();
+
     for config in configs.iter() {
         let app_name = config.name.clone();
         let app_path = config.path.clone();
-        let port = config.port;
+        let mut port = config.port;
 
         if !app_path.exists() {
             log(&format!(
@@ -60,6 +63,34 @@ pub fn run() -> Result<()> {
             ));
             continue;
         }
+
+        let existing_pids = find_pids_by_port(port);
+        if !existing_pids.is_empty() {
+            let same_app_pids = find_pids_by_port_for_app(port, &app_path);
+            if same_app_pids.is_empty() {
+                port = next_available_port();
+                let mut updated_config = load_app_config(&app_name)?;
+                updated_config.port = port;
+                save_app_config(&updated_config)?;
+                log(&format!(
+                    "[start_all] {} reassigned to port {} (was in use)",
+                    app_name, port
+                ));
+            }
+        }
+
+        if is_port_in_use(port) || used_ports.contains(&port) {
+            port = next_available_port();
+            let mut updated_config = load_app_config(&app_name)?;
+            updated_config.port = port;
+            save_app_config(&updated_config)?;
+            log(&format!(
+                "[start_all] {} assigned new port {}",
+                app_name, port
+            ));
+        }
+
+        used_ports.push(port);
 
         log(&format!(
             "[start_all] Starting {} on port {}...",

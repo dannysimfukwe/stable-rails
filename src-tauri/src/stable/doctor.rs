@@ -22,8 +22,37 @@ fn run_check(name: &str, cmd: &str, args: &[&str]) -> Check {
     }
 }
 
+fn install_caddy() -> Result<String> {
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg("brew install caddy")
+        .output()?;
+
+    if output.status.success() {
+        Ok("Caddy installed successfully".to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Ok(format!("Failed to install Caddy: {}", stderr))
+    }
+}
+
+fn install_mkcert() -> Result<String> {
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg("brew install mkcert")
+        .output()?;
+
+    if output.status.success() {
+        Ok("mkcert installed successfully".to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Ok(format!("Failed to install mkcert: {}", stderr))
+    }
+}
+
 pub fn run() -> Result<String> {
     let mut checks = Vec::new();
+    let mut install_messages = Vec::new();
 
     let homebrew = std::process::Command::new("/bin/zsh")
         .arg("-lc")
@@ -37,7 +66,7 @@ pub fn run() -> Result<String> {
         message: if homebrew {
             "Found".to_string()
         } else {
-            "Not found".to_string()
+            "Not found - install from https://brew.sh".to_string()
         },
     });
 
@@ -47,11 +76,26 @@ pub fn run() -> Result<String> {
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
+
+    let caddy_check = if !caddy && homebrew {
+        match install_caddy() {
+            Ok(msg) => {
+                install_messages.push(msg);
+                true
+            }
+            Err(e) => false,
+        }
+    } else {
+        caddy
+    };
+
     checks.push(Check {
         name: "Caddy".to_string(),
-        passed: caddy,
-        message: if caddy {
+        passed: caddy_check,
+        message: if caddy_check {
             "Found".to_string()
+        } else if !homebrew {
+            "Not found (install Homebrew first)".to_string()
         } else {
             "Not found".to_string()
         },
@@ -63,11 +107,26 @@ pub fn run() -> Result<String> {
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
+
+    let mkcert_check = if !mkcert && homebrew {
+        match install_mkcert() {
+            Ok(msg) => {
+                install_messages.push(msg);
+                true
+            }
+            Err(e) => false,
+        }
+    } else {
+        mkcert
+    };
+
     checks.push(Check {
         name: "mkcert".to_string(),
-        passed: mkcert,
-        message: if mkcert {
+        passed: mkcert_check,
+        message: if mkcert_check {
             "Found".to_string()
+        } else if !homebrew {
+            "Not found (install Homebrew first)".to_string()
         } else {
             "Not found".to_string()
         },
@@ -85,7 +144,7 @@ pub fn run() -> Result<String> {
         message: if rvm {
             "Found".to_string()
         } else {
-            "Not found".to_string()
+            "Not found - install from https://rvm.io".to_string()
         },
     });
 
@@ -136,6 +195,13 @@ pub fn run() -> Result<String> {
             "{} {}\n    {}\n",
             status, check.name, check.message
         ));
+    }
+
+    if !install_messages.is_empty() {
+        report.push_str("\n--- Auto-installed ---\n");
+        for msg in &install_messages {
+            report.push_str(&format!("  • {}\n", msg));
+        }
     }
 
     let all_passed = checks.iter().all(|c| c.passed);

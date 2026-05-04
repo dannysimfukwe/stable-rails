@@ -149,6 +149,8 @@
             <button class="app-tab is-active" data-tab="overview">Overview</button>
             <button class="app-tab" data-tab="console">Console</button>
             <button class="app-tab" data-tab="database">Database</button>
+            <button class="app-tab" data-tab="env">ENV</button>
+            <button class="app-tab" data-tab="deploy">Deploy</button>
             <button class="app-tab" data-tab="redis">Redis</button>
             <button class="app-tab" data-tab="logs">Logs</button>
             <button class="app-tab" data-tab="settings">Settings</button>
@@ -281,6 +283,46 @@
                     <p class="placeholder">Select a table or run a query to view data</p>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div class="tab-content" id="tab-env">
+              <div class="env-container">
+                <div class="env-toolbar">
+                  <h3>Environment Variables</h3>
+                  <button class="primary" id="add-env-var">Add Variable</button>
+                </div>
+                <div class="env-table-wrapper">
+                  <table class="env-table" id="env-table">
+                    <thead>
+                      <tr>
+                        <th>Key</th>
+                        <th>Value</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="env-tbody">
+                      <tr><td colspan="3" class="placeholder">Loading .env file...</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="env-actions">
+                  <button class="primary" id="save-env">Save .env</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="tab-content" id="tab-deploy">
+              <div class="deploy-container">
+                <div class="deploy-status" id="deploy-status">
+                  <p class="placeholder">Checking deployment configuration...</p>
+                </div>
+                <div class="deploy-actions" id="deploy-actions" style="display:none;">
+                  <button class="primary" id="kamal-setup">Kamal Setup</button>
+                  <button class="primary" id="kamal-deploy">Deploy</button>
+                  <button class="ghost" id="kamal-logs">Logs</button>
+                </div>
+                <div class="deploy-output" id="deploy-output"></div>
               </div>
             </div>
 

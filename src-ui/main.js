@@ -97,6 +97,12 @@ function switchAppTab(tab) {
   document.querySelectorAll(".tab-content").forEach((c) => {
     c.classList.toggle("is-active", c.id === `tab-${tab}`);
   });
+  if (tab === "env" && state.currentApp) {
+    loadEnvFile();
+  }
+  if (tab === "deploy" && state.currentApp) {
+    checkDeployStatus();
+  }
 }
 
 function renderApps(apps) {
@@ -596,6 +602,129 @@ async function runSqlQuery() {
   }
 }
 
+async function loadEnvFile() {
+  if (!state.currentApp) return;
+  const tbody = document.getElementById("env-tbody");
+  if (!tbody) return;
+  
+  tbody.innerHTML = '<tr><td colspan="3" class="placeholder">Loading .env file...</td></tr>';
+  
+  try {
+    const vars = await invoke("get_env_file", { name: state.currentApp.name });
+    if (vars.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" class="placeholder">No .env file found</td></tr>';
+      return;
+    }
+    
+    tbody.innerHTML = vars.map(([key, value], index) => `
+      <tr data-index="${index}">
+        <td><input type="text" value="${key}" class="env-key" data-index="${index}"></td>
+        <td><input type="text" value="${value}" class="env-value" data-index="${index}"></td>
+        <td><button class="ghost" onclick="deleteEnvVar(${index})">Delete</button></td>
+      </tr>
+    `).join("");
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="3" class="placeholder" style="color:#ef4444;">Error: ${e}</td></tr>`;
+  }
+}
+
+async function saveEnvFile() {
+  if (!state.currentApp) return;
+  const tbody = document.getElementById("env-tbody");
+  if (!tbody) return;
+  
+  const rows = tbody.querySelectorAll("tr[data-index]");
+  const vars = [];
+  rows.forEach(row => {
+    const keyInput = row.querySelector(".env-key");
+    const valueInput = row.querySelector(".env-value");
+    if (keyInput && valueInput && keyInput.value.trim()) {
+      vars.push([keyInput.value.trim(), valueInput.value.trim()]);
+    }
+  });
+  
+  try {
+    await invoke("save_env_file", { name: state.currentApp.name, vars });
+    showToast(".env saved — restarting app...");
+    // Restart the app to pick up new env vars
+    await invoke("restart_app", { name: state.currentApp.name });
+    showToast("App restarted with new environment variables");
+  } catch (e) {
+    showToast("Error saving .env: " + e);
+  }
+}
+
+function deleteEnvVar(index) {
+  const tbody = document.getElementById("env-tbody");
+  if (!tbody) return;
+  const row = tbody.querySelector(`tr[data-index="${index}"]`);
+  if (row) row.remove();
+}
+
+async function addEnvVar() {
+  const tbody = document.getElementById("env-tbody");
+  if (!tbody) return;
+  
+  const existingRows = tbody.querySelectorAll("tr[data-index]");
+  const newIndex = existingRows.length;
+  
+  const newRow = document.createElement("tr");
+  newRow.setAttribute("data-index", newIndex);
+  newRow.innerHTML = `
+    <td><input type="text" value="" class="env-key" data-index="${newIndex}" placeholder="KEY"></td>
+    <td><input type="text" value="" class="env-value" data-index="${newIndex}" placeholder="value"></td>
+    <td><button class="ghost" onclick="deleteEnvVar(${newIndex})">Delete</button></td>
+  `;
+  tbody.appendChild(newRow);
+}
+
+async function checkDeployStatus() {
+  if (!state.currentApp) return;
+  const statusEl = document.getElementById("deploy-status");
+  const actionsEl = document.getElementById("deploy-actions");
+  if (!statusEl) return;
+  
+  statusEl.innerHTML = '<p class="placeholder">Checking deployment configuration...</p>';
+  if (actionsEl) actionsEl.style.display = "none";
+  
+  try {
+    const status = await invoke("check_kamal", { name: state.currentApp.name });
+    
+    let html = '<div style="display:flex; flex-direction:column; gap:8px;">';
+    html += `<div style="display:flex; justify-content:space-between;"><span>Kamal</span><span style="color:${status.kamal_installed ? '#22c55e' : '#ef4444'}">${status.kamal_installed ? 'Installed' : 'Not installed'}</span></div>`;
+    html += `<div style="display:flex; justify-content:space-between;"><span>Docker</span><span style="color:${status.docker_installed ? '#22c55e' : '#ef4444'}">${status.docker_installed ? 'Installed' : 'Not installed'}</span></div>`;
+    html += `<div style="display:flex; justify-content:space-between;"><span>Config</span><span style="color:${status.has_config ? '#22c55e' : '#ef4444'}">${status.has_config ? 'Found' : 'Missing'}</span></div>`;
+    html += '</div>';
+    
+    statusEl.innerHTML = html;
+    
+    if (status.kamal_installed && status.docker_installed) {
+      if (actionsEl) actionsEl.style.display = "flex";
+    }
+  } catch (e) {
+    statusEl.innerHTML = `<p style="color:#ef4444;">Error: ${e}</p>`;
+  }
+}
+
+async function runKamalCommand(cmd) {
+  if (!state.currentApp) return;
+  const outputEl = document.getElementById("deploy-output");
+  if (outputEl) {
+    outputEl.textContent = `Running: kamal ${cmd}\n\n`;
+  }
+  
+  try {
+    const result = await invoke("kamal_command", { name: state.currentApp.name, cmd });
+    if (outputEl) {
+      outputEl.textContent += result;
+    }
+  } catch (e) {
+    if (outputEl) {
+      outputEl.textContent += `Error: ${e}`;
+    }
+  }
+}
+
 async function scanRedisKeys() {
   const pattern = document.getElementById("redis-key")?.value?.trim() || "*";
   if (!state.currentApp) return;
@@ -976,6 +1105,13 @@ function wireEvents() {
 
   document.getElementById("run-query")?.addEventListener("click", runSqlQuery);
 
+  document.getElementById("add-env-var")?.addEventListener("click", addEnvVar);
+  document.getElementById("save-env")?.addEventListener("click", saveEnvFile);
+
+  document.getElementById("kamal-setup")?.addEventListener("click", () => runKamalCommand("setup"));
+  document.getElementById("kamal-deploy")?.addEventListener("click", () => runKamalCommand("deploy"));
+  document.getElementById("kamal-logs")?.addEventListener("click", () => runKamalCommand("logs"));
+
   document.getElementById("redis-scan")?.addEventListener("click", scanRedisKeys);
 
   async function loadAppLogs() {
@@ -1112,6 +1248,13 @@ async function loadRubyVersions() {
     container.innerHTML = '<p class="loading">Failed to load Ruby versions</p>';
   }
 }
+
+window.deleteEnvVar = deleteEnvVar;
+window.addEnvVar = addEnvVar;
+window.saveEnvFile = saveEnvFile;
+window.loadEnvFile = loadEnvFile;
+window.checkDeployStatus = checkDeployStatus;
+window.runKamalCommand = runKamalCommand;
 
 window.addEventListener("DOMContentLoaded", () => {
   wireEvents();

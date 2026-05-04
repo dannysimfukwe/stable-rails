@@ -615,6 +615,180 @@ fn bundle_install(name: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn get_env_file(name: String) -> Result<Vec<(String, String)>, String> {
+    let app_path = stable::utils::apps_folder().join(&name);
+    let env_path = app_path.join(".env");
+    
+    if !env_path.exists() {
+        return Ok(Vec::new());
+    }
+    
+    let content = std::fs::read_to_string(&env_path).map_err(|e| e.to_string())?;
+    let mut vars = Vec::new();
+    
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some(pos) = line.find('=') {
+            let key = line[..pos].trim().to_string();
+            let value = line[pos + 1..].trim().to_string();
+            vars.push((key, value));
+        }
+    }
+    
+    Ok(vars)
+}
+
+#[tauri::command]
+fn save_env_file(name: String, vars: Vec<(String, String)>) -> Result<(), String> {
+    let app_path = stable::utils::apps_folder().join(&name);
+    let env_path = app_path.join(".env");
+    
+    let mut content = String::new();
+    for (key, value) in vars {
+        content.push_str(&format!("{}={}\n", key, value));
+    }
+    
+    std::fs::write(&env_path, content).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn check_kamal(name: String) -> Result<KamalStatus, String> {
+    let app_path = stable::utils::apps_folder().join(&name);
+
+    let has_config = app_path.join("config/deploy.yml").exists();
+    
+    // Check if kamal is in the Gemfile (more reliable than bundle exec)
+    let gemfile_path = app_path.join("Gemfile");
+    let gemfile_lock = app_path.join("Gemfile.lock");
+    let mut kamal_in_gemfile = false;
+    
+    if gemfile_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&gemfile_path) {
+            kamal_in_gemfile = content.contains("kamal");
+        }
+    }
+    
+    // Also check Gemfile.lock for kamal
+    if !kamal_in_gemfile && gemfile_lock.exists() {
+        if let Ok(content) = std::fs::read_to_string(&gemfile_lock) {
+            kamal_in_gemfile = content.contains("kamal (");
+        }
+    }
+    
+    let path = format!(
+        "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:{}",
+        std::env::var("PATH").unwrap_or_default()
+    );
+    let docker_installed = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg(&format!("export PATH='{}' && which docker", path))
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    
+    Ok(KamalStatus {
+        kamal_installed: kamal_in_gemfile,
+        has_config,
+        docker_installed,
+        app_name: name,
+    })
+}
+
+#[tauri::command]
+fn kamal_command(name: String, cmd: String) -> Result<String, String> {
+    let app_path = stable::utils::apps_folder().join(&name);
+    let (ruby_path, bundle_path) =
+        stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|e| e.to_string())?;
+
+    // Use the exact ruby and bundle paths to avoid version mismatches
+    let full_cmd = format!(
+        "cd '{}' && '{}' '{}' exec kamal {}",
+        app_path.display(),
+        ruby_path.display(),
+        bundle_path.display(),
+        cmd
+    );
+
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg(&full_cmd)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|err| err.to_string())?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    
+    if !output.status.success() {
+        let error_msg = if stderr.is_empty() { stdout } else { stderr };
+        
+        // Check for remote Docker not found (Kamal SSHing to server without Docker)
+        if error_msg.contains("docker: not found") && error_msg.contains("Pseudo-terminal") {
+            return Err(format!(
+                "Docker is not installed on the remote deployment server.\n\n\
+                Run 'Kamal Setup' first to install Docker on your server, then try deploying.\n\n\
+                Original error:\n{}",
+                error_msg
+            ));
+        }
+        
+        // Check for remote Docker not found (without SSH message)
+        if error_msg.contains("docker: not found") {
+            return Err(format!(
+                "Docker is not found on the target server. If this is a remote deployment, run 'Kamal Setup' first.\n\n\
+                If deploying locally, make sure Docker is installed and running:\n  brew install docker\n\n\
+                Original error:\n{}",
+                error_msg
+            ));
+        }
+        
+        // Check for SSH connection issues
+        if error_msg.contains("Pseudo-terminal will not be allocated") {
+            return Err(format!(
+                "Could not connect to the remote server via SSH.\n\n\
+                Make sure your server is configured correctly in config/deploy.yml and is accessible.\n\n\
+                Original error:\n{}",
+                error_msg
+            ));
+        }
+        
+        // Check for invalid Kamal command
+        if error_msg.contains("Could not find command") {
+            return Err(format!(
+                "'kamal {}' is not a valid command in your version of Kamal.\n\n\
+                Common Kamal commands:\n  kamal setup    - Install Docker on remote server\n  kamal deploy   - Deploy the application\n  kamal logs     - Show application logs\n  kamal remove   - Remove the application\n\n\
+                Original error:\n{}",
+                cmd, error_msg
+            ));
+        }
+        
+        // Check for actual Bundler compatibility errors (GemParser, uninitialized constant, etc.)
+        if error_msg.contains("GemParser") || error_msg.contains("uninitialized constant") || error_msg.contains("LoadError") {
+            return Err(format!("Bundler compatibility error. Run this in your app directory:\n\ncd {}\ngem update --system\n# or\ngem install bundler --version '~> 2.0'\n\nThen try again.\n\nOriginal error:\n{}", app_path.display(), error_msg));
+        }
+        // Check if kamal is just not installed
+        if error_msg.contains("command not found: kamal") || error_msg.contains("Could not find gem 'kamal'") {
+            return Err(format!("Kamal gem not installed. Make sure kamal is in your Gemfile and run 'bundle install' in your app directory.\n\nOriginal error:\n{}", error_msg));
+        }
+        return Err(format!("{}", error_msg));
+    }
+    
+    Ok(if stdout.is_empty() { stderr } else { stdout })
+}
+
+#[derive(Debug, serde::Serialize)]
+struct KamalStatus {
+    kamal_installed: bool,
+    has_config: bool,
+    docker_installed: bool,
+    app_name: String,
+}
+
+#[tauri::command]
 fn list_ruby_versions() -> Result<Vec<String>, String> {
     let mut versions = Vec::new();
 
@@ -797,7 +971,11 @@ pub fn run() {
             save_app_settings,
             bundle_install,
             list_ruby_versions,
-            install_ruby
+            install_ruby,
+            get_env_file,
+            save_env_file,
+            check_kamal,
+            kamal_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

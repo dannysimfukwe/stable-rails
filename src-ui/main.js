@@ -397,11 +397,50 @@ function formatUptime(startedAt) {
   return `${seconds}s`;
 }
 
+function resetAppTabs() {
+  // Reset deploy tab
+  const deployOutput = document.getElementById("deploy-output");
+  if (deployOutput) deployOutput.textContent = "";
+  
+  const deployForm = document.getElementById("deploy-config-form");
+  const deployConfigured = document.getElementById("deploy-configured");
+  if (deployForm) deployForm.style.display = "none";
+  if (deployConfigured) deployConfigured.style.display = "none";
+  
+  // Reset console
+  const consoleOutputEl = document.getElementById("console-output");
+  if (consoleOutputEl) {
+    consoleOutputEl.innerHTML = '<div class="console-line prompt">irb(main):001:0&gt; </div>';
+  }
+  state.consoleMode = "command";
+  state.consoleHistory = [];
+  state.consoleHistoryIndex = -1;
+  
+  // Reset database
+  const tableListEl = document.getElementById("table-list");
+  if (tableListEl) tableListEl.innerHTML = '<li class="table-item">Loading tables...</li>';
+  state.currentTable = null;
+  state.currentColumns = [];
+  
+  // Reset logs
+  const logsOutputEl = document.getElementById("logs-output");
+  if (logsOutputEl) logsOutputEl.textContent = "No logs yet. Start the app to see logs here.";
+  
+  // Reset redis
+  const redisResultsEl = document.getElementById("redis-results");
+  if (redisResultsEl) redisResultsEl.innerHTML = '<p class="placeholder">Enter a key pattern to search Redis keys</p>';
+  
+  // Reset env
+  const envTbody = document.getElementById("env-tbody");
+  if (envTbody) envTbody.innerHTML = '<tr><td colspan="3" class="placeholder">Loading .env file...</td></tr>';
+}
+
 function showRunView(app) {
   if (!state.runningApps.includes(app.name)) {
     state.runningApps.push(app.name);
   }
   state.currentApp = app;
+  resetAppTabs();
   
   document.getElementById("run-app-name").textContent = app.name;
   const runAppUrlEl = document.getElementById("run-app-url");
@@ -906,6 +945,7 @@ async function handleAppAction(action, name) {
     const app = state.apps.find((entry) => entry.name === name);
     if (app) {
       state.currentApp = app;
+      resetAppTabs();
       
       document.getElementById("run-app-name").textContent = app.name;
       const runAppUrlEl = document.getElementById("run-app-url");

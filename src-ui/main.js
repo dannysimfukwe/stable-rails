@@ -15,6 +15,8 @@ const state = {
   busy: false,
   runningApps: [],
   currentApp: null,
+  currentTable: null,
+  currentColumns: [],
   uptimeTimer: null,
   consoleHistory: [],
   consoleHistoryIndex: -1,
@@ -454,6 +456,7 @@ async function loadTables() {
 
 async function runTableQuery(tableName) {
   if (!state.currentApp) return;
+  state.currentTable = tableName;
   const resultsEl = document.getElementById("query-results");
   if (!resultsEl) return;
 
@@ -463,6 +466,7 @@ async function runTableQuery(tableName) {
     const result = await invoke("db_query", { name: state.currentApp.name, sql: `SELECT * FROM ${tableName} LIMIT 100` });
     console.log('db_query result:', JSON.stringify(result));
 
+    state.currentColumns = result.columns || [];
     if (result && result.rows && result.rows.length > 0) {
       let html = '<table><thead><tr>';
       for (const col of result.columns) {

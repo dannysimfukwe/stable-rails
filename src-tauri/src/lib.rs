@@ -365,6 +365,174 @@ puts JSON.generate(columns: cols, rows: rows)
 }
 
 #[tauri::command]
+fn db_execute(name: String, sql: String) -> Result<String, String> {
+    let app_path = stable::utils::apps_folder().join(&name);
+    let (ruby_path, bundle_path) =
+        stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|e| e.to_string())?;
+
+    let script_path = "/tmp/stable_exec.rb";
+    let sql_escaped = sql.replace('"', "\\\"");
+    let ruby_script = format!(
+        r#"sql = "{}"
+result = ActiveRecord::Base.connection.execute(sql)
+puts result.inspect
+"#,
+        sql_escaped
+    );
+    std::fs::write(script_path, &ruby_script).map_err(|e| e.to_string())?;
+
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg(&format!(
+            "cd '{}' && '{}' '{}' exec rails runner {}",
+            app_path.display(),
+            ruby_path.display(),
+            bundle_path.display(),
+            script_path
+        ))
+        .output()
+        .map_err(|err| err.to_string())?;
+
+    let _ = std::fs::remove_file(script_path).map_err(|e| e.to_string());
+
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if !output.status.success() {
+        return Err(if stderr.is_empty() { "Execution failed".to_string() } else { stderr });
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    Ok(stdout)
+}
+
+#[tauri::command]
+fn db_export(name: String, table: String, format: String) -> Result<String, String> {
+    let app_path = stable::utils::apps_folder().join(&name);
+    let (ruby_path, bundle_path) =
+        stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|e| e.to_string())?;
+
+    let script_path = "/tmp/stable_export.rb";
+    let table_escaped = table.replace('"', "\\\"");
+    let ruby_script = format!(
+        r#"require 'json'
+require 'csv'
+table_name = "{}"
+rows = ActiveRecord::Base.connection.execute("SELECT * FROM " + table_name).to_a
+cols = rows.first ? rows.first.keys : []
+result = case "{}"
+when 'json'
+  JSON.generate(cols: cols, rows: rows.map do |r|
+    cols.map do |c|
+      r[c].to_s
+    end
+  end)
+when 'csv'
+  CSV.generate do |csv|
+    csv << cols
+    rows.each do |r|
+      csv << cols.map do |c|
+        r[c].to_s
+      end
+    end
+  end
+else
+  "ERROR: Unknown format"
+end
+puts result
+"#,
+        table_escaped, format
+    );
+    std::fs::write(script_path, &ruby_script).map_err(|e| e.to_string())?;
+
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg(&format!(
+            "cd '{}' && '{}' '{}' exec rails runner {}",
+            app_path.display(),
+            ruby_path.display(),
+            bundle_path.display(),
+            script_path
+        ))
+        .output()
+        .map_err(|err| err.to_string())?;
+
+    let _ = std::fs::remove_file(script_path).map_err(|e| e.to_string());
+
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if !output.status.success() && stderr.contains("ERROR") {
+        return Err(stderr);
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+#[tauri::command]
+fn db_import(name: String, table: String, format: String, data: String) -> Result<String, String> {
+    let app_path = stable::utils::apps_folder().join(&name);
+    let (ruby_path, bundle_path) =
+        stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|e| e.to_string())?;
+
+    let script_path = "/tmp/stable_import.rb";
+    let table_escaped = table.replace('"', "\\\"");
+    let format_escaped = format.replace('"', "\\\"");
+    let data_escaped = data.replace("\\", "\\\\").replace("\"", "\\\"");
+    let ruby_script = format!(
+        r#"require 'json'
+require 'csv'
+table_name = "{}"
+format_type = "{}"
+raw_data = "{}"
+cols = nil
+rows = nil
+case format_type
+when 'json'
+  parsed = JSON.parse(raw_data)
+  cols = parsed['columns']
+  rows = parsed['rows']
+when 'csv'
+  parsed = CSV.parse(raw_data)
+  cols = parsed.first
+  rows = parsed[1..-1]
+else
+  puts "ERROR: Unknown format"
+  exit 1
+end
+imported = 0
+rows.each do |row|
+  placeholders = (1..cols.length).map {{ |i| "?" }}.join(', ')
+  cols_sql = cols.map {{ |c| "`" + c + "`" }}.join(', ')
+  sql = "INSERT INTO " + table_name + " (" + cols_sql + ") VALUES (" + placeholders + ")"
+  ActiveRecord::Base.connection.execute(sql, *row)
+  imported += 1
+end
+puts "OK: " + imported.to_s + " rows imported"
+"#,
+        table_escaped, format_escaped, data_escaped
+    );
+    std::fs::write(script_path, &ruby_script).map_err(|e| e.to_string())?;
+
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg(&format!(
+            "cd '{}' && '{}' '{}' exec rails runner {}",
+            app_path.display(),
+            ruby_path.display(),
+            bundle_path.display(),
+            script_path
+        ))
+        .output()
+        .map_err(|err| err.to_string())?;
+
+    let _ = std::fs::remove_file(script_path).map_err(|e| e.to_string());
+
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if !output.status.success() {
+        return Err(if stderr.is_empty() { "Import failed".to_string() } else { stderr });
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+#[tauri::command]
 fn redis_scan(name: String, pattern: String) -> Result<Vec<String>, String> {
     let app_path = stable::utils::apps_folder().join(&name);
     let (ruby_path, bundle_path) =
@@ -605,6 +773,9 @@ pub fn run() {
             rails_command,
             db_tables,
             db_query,
+            db_execute,
+            db_export,
+            db_import,
             redis_scan,
             get_app_logs,
             save_app_settings,

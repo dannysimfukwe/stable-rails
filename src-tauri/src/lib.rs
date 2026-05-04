@@ -655,6 +655,223 @@ fn save_env_file(name: String, vars: Vec<(String, String)>) -> Result<(), String
     Ok(())
 }
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct DeployConfig {
+    server: String,
+    ssh_user: String,
+    registry: String,
+    registry_username: String,
+    #[serde(skip_serializing)]
+    registry_password: String,
+    app_name: String,
+    domain: Option<String>,
+    #[serde(skip_serializing)]
+    rails_master_key: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct DeployConfigResponse {
+    configured: bool,
+    config: Option<DeployConfig>,
+}
+
+#[tauri::command]
+fn get_deploy_config(name: String) -> Result<DeployConfigResponse, String> {
+    let app_path = stable::utils::apps_folder().join(&name);
+    let deploy_yml = app_path.join("config/deploy.yml");
+    
+    if !deploy_yml.exists() {
+        return Ok(DeployConfigResponse {
+            configured: false,
+            config: None,
+        });
+    }
+    
+    let content = std::fs::read_to_string(&deploy_yml).map_err(|e| e.to_string())?;
+    
+    // Parse the YAML to extract config
+    let docs = yaml_rust::YamlLoader::load_from_str(&content).map_err(|e| e.to_string())?;
+    if docs.is_empty() {
+        return Ok(DeployConfigResponse {
+            configured: false,
+            config: None,
+        });
+    }
+    
+    let doc = &docs[0];
+    
+    let service = doc["service"].as_str().unwrap_or(&name).to_string();
+    
+    // Extract server from servers.web array
+    let server = doc["servers"]["web"]
+        .as_vec()
+        .and_then(|v| v.first())
+        .and_then(|y| y.as_str())
+        .unwrap_or("")
+        .to_string();
+    
+    // Extract SSH user from server string (e.g., "root@123.456.789.0" or just "123.456.789.0")
+    let (ssh_user, server_host) = if server.contains('@') {
+        let parts: Vec<&str> = server.split('@').collect();
+        (parts[0].to_string(), parts[1].to_string())
+    } else {
+        ("root".to_string(), server)
+    };
+    
+    // Extract registry username
+    let registry_username = doc["registry"]["username"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    
+    // Extract image to determine registry
+    let image = doc["image"].as_str().unwrap_or("").to_string();
+    let registry = if image.starts_with("ghcr.io/") {
+        "GitHub Container Registry".to_string()
+    } else if image.starts_with("registry.gitlab.com/") {
+        "GitLab Container Registry".to_string()
+    } else {
+        "Docker Hub".to_string()
+    };
+    
+    // Extract domain from proxy settings if present
+    let domain = doc["proxy"]["host"]
+        .as_str()
+        .map(|s| s.to_string());
+    
+    // Read secrets file for sensitive values
+    let secrets_path = app_path.join(".kamal/secrets");
+    let mut registry_password = String::new();
+    let mut rails_master_key = String::new();
+    
+    if secrets_path.exists() {
+        if let Ok(secrets_content) = std::fs::read_to_string(&secrets_path) {
+            for line in secrets_content.lines() {
+                let line = line.trim();
+                if line.starts_with("export KAMAL_REGISTRY_PASSWORD=") {
+                    registry_password = line["export KAMAL_REGISTRY_PASSWORD=".len()..]
+                        .trim_matches('"')
+                        .to_string();
+                }
+                if line.starts_with("export RAILS_MASTER_KEY=") {
+                    rails_master_key = line["export RAILS_MASTER_KEY=".len()..]
+                        .trim_matches('"')
+                        .to_string();
+                }
+            }
+        }
+    }
+    
+    Ok(DeployConfigResponse {
+        configured: !server_host.is_empty(),
+        config: Some(DeployConfig {
+            server: server_host,
+            ssh_user,
+            registry,
+            registry_username,
+            registry_password,
+            app_name: service,
+            domain,
+            rails_master_key,
+        }),
+    })
+}
+
+#[tauri::command]
+fn save_deploy_config(name: String, config: DeployConfig) -> Result<(), String> {
+    let app_path = stable::utils::apps_folder().join(&name);
+    
+    // Validate required fields
+    if config.server.trim().is_empty() {
+        return Err("Server IP or hostname is required".to_string());
+    }
+    if config.registry_username.trim().is_empty() {
+        return Err("Registry username is required".to_string());
+    }
+    if config.registry_password.trim().is_empty() {
+        return Err("Registry password is required".to_string());
+    }
+    if config.rails_master_key.trim().is_empty() {
+        return Err("Rails Master Key is required".to_string());
+    }
+    
+    let app_name = if config.app_name.trim().is_empty() {
+        name.clone()
+    } else {
+        config.app_name.trim().to_string()
+    };
+    
+    // Build server string with SSH user
+    let server_str = if config.ssh_user == "root" {
+        config.server.trim().to_string()
+    } else {
+        format!("{}@{}", config.ssh_user.trim(), config.server.trim())
+    };
+    
+    // Build image string based on registry
+    let image = match config.registry.as_str() {
+        "GitHub Container Registry" => format!("ghcr.io/{}/{}", config.registry_username.trim(), app_name),
+        "GitLab Container Registry" => format!("registry.gitlab.com/{}/{}", config.registry_username.trim(), app_name),
+        _ => format!("{}/{}", config.registry_username.trim(), app_name),
+    };
+    
+    // Generate deploy.yml
+    let mut deploy_yaml = format!("service: {}\n", app_name);
+    deploy_yaml.push_str(&format!("image: {}\n", image));
+    deploy_yaml.push_str("servers:\n");
+    deploy_yaml.push_str("  web:\n");
+    deploy_yaml.push_str(&format!("    - {}\n", server_str));
+    deploy_yaml.push_str("registry:\n");
+    deploy_yaml.push_str(&format!("  username: {}\n", config.registry_username.trim()));
+    deploy_yaml.push_str("  password:\n");
+    deploy_yaml.push_str("    - KAMAL_REGISTRY_PASSWORD\n");
+    
+    // Add proxy/domain if provided
+    if let Some(domain) = &config.domain {
+        if !domain.trim().is_empty() {
+            deploy_yaml.push_str("proxy:\n");
+            deploy_yaml.push_str(&format!("  host: {}\n", domain.trim()));
+        }
+    }
+    
+    deploy_yaml.push_str("env:\n");
+    deploy_yaml.push_str("  secret:\n");
+    deploy_yaml.push_str("    - RAILS_MASTER_KEY\n");
+    
+    // Ensure config directory exists
+    let config_dir = app_path.join("config");
+    std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
+    
+    // Write deploy.yml
+    std::fs::write(config_dir.join("deploy.yml"), deploy_yaml)
+        .map_err(|e| format!("Failed to write deploy.yml: {}", e))?;
+    
+    // Write .kamal/secrets
+    let kamal_dir = app_path.join(".kamal");
+    std::fs::create_dir_all(&kamal_dir).map_err(|e| e.to_string())?;
+    
+    let secrets_content = format!(
+        "#!/bin/bash\nexport KAMAL_REGISTRY_PASSWORD=\"{}\"\nexport RAILS_MASTER_KEY=\"{}\"\n",
+        config.registry_password.replace("\"", "\\\""),
+        config.rails_master_key.replace("\"", "\\\"")
+    );
+    
+    let secrets_path = kamal_dir.join("secrets");
+    std::fs::write(&secrets_path, secrets_content)
+        .map_err(|e| format!("Failed to write secrets file: {}", e))?;
+    
+    // Make secrets executable
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&secrets_path).map_err(|e| e.to_string())?.permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&secrets_path, perms).map_err(|e| e.to_string())?;
+    }
+    
+    Ok(())
+}
+
 #[tauri::command]
 fn check_kamal(name: String) -> Result<KamalStatus, String> {
     let app_path = stable::utils::apps_folder().join(&name);
@@ -704,10 +921,18 @@ fn kamal_command(name: String, cmd: String) -> Result<String, String> {
     let (ruby_path, bundle_path) =
         stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|e| e.to_string())?;
 
+    // Source .kamal/secrets if it exists to load registry password and master key
+    let secrets_source = if app_path.join(".kamal/secrets").exists() {
+        format!("source '{}/.kamal/secrets' && ", app_path.display())
+    } else {
+        String::new()
+    };
+
     // Use the exact ruby and bundle paths to avoid version mismatches
     let full_cmd = format!(
-        "cd '{}' && '{}' '{}' exec kamal {}",
+        "cd '{}' && {}'{}' '{}' exec kamal {}",
         app_path.display(),
+        secrets_source,
         ruby_path.display(),
         bundle_path.display(),
         cmd
@@ -975,7 +1200,9 @@ pub fn run() {
             get_env_file,
             save_env_file,
             check_kamal,
-            kamal_command
+            kamal_command,
+            get_deploy_config,
+            save_deploy_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

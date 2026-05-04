@@ -101,7 +101,7 @@ function switchAppTab(tab) {
     loadEnvFile();
   }
   if (tab === "deploy" && state.currentApp) {
-    checkDeployStatus();
+    loadDeployConfig();
   }
 }
 
@@ -678,31 +678,99 @@ async function addEnvVar() {
   tbody.appendChild(newRow);
 }
 
-async function checkDeployStatus() {
+async function loadDeployConfig() {
   if (!state.currentApp) return;
-  const statusEl = document.getElementById("deploy-status");
-  const actionsEl = document.getElementById("deploy-actions");
-  if (!statusEl) return;
-  
-  statusEl.innerHTML = '<p class="placeholder">Checking deployment configuration...</p>';
-  if (actionsEl) actionsEl.style.display = "none";
-  
+  const formEl = document.getElementById("deploy-config-form");
+  const configuredEl = document.getElementById("deploy-configured");
+  const summaryEl = document.getElementById("deploy-config-summary");
+  const outputEl = document.getElementById("deploy-output");
+
+  // Reset output
+  if (outputEl) outputEl.textContent = "";
+
+  // Pre-fill app name in form
+  const appNameInput = document.getElementById("deploy-app-name");
+  if (appNameInput && !appNameInput.value) {
+    appNameInput.value = state.currentApp.name;
+  }
+
   try {
-    const status = await invoke("check_kamal", { name: state.currentApp.name });
-    
-    let html = '<div style="display:flex; flex-direction:column; gap:8px;">';
-    html += `<div style="display:flex; justify-content:space-between;"><span>Kamal</span><span style="color:${status.kamal_installed ? '#22c55e' : '#ef4444'}">${status.kamal_installed ? 'Installed' : 'Not installed'}</span></div>`;
-    html += `<div style="display:flex; justify-content:space-between;"><span>Docker</span><span style="color:${status.docker_installed ? '#22c55e' : '#ef4444'}">${status.docker_installed ? 'Installed' : 'Not installed'}</span></div>`;
-    html += `<div style="display:flex; justify-content:space-between;"><span>Config</span><span style="color:${status.has_config ? '#22c55e' : '#ef4444'}">${status.has_config ? 'Found' : 'Missing'}</span></div>`;
-    html += '</div>';
-    
-    statusEl.innerHTML = html;
-    
-    if (status.kamal_installed && status.docker_installed) {
-      if (actionsEl) actionsEl.style.display = "flex";
+    const result = await invoke("get_deploy_config", { name: state.currentApp.name });
+
+    if (result.configured && result.config) {
+      // Show configured state
+      if (formEl) formEl.style.display = "none";
+      if (configuredEl) configuredEl.style.display = "block";
+
+      const cfg = result.config;
+      let html = '<div class="config-summary-grid">';
+      html += `<div><span class="config-label">Server</span><span class="config-value">${cfg.ssh_user}@${cfg.server}</span></div>`;
+      html += `<div><span class="config-label">Registry</span><span class="config-value">${cfg.registry}</span></div>`;
+      html += `<div><span class="config-label">Image</span><span class="config-value">${cfg.registry_username}/${cfg.app_name}</span></div>`;
+      if (cfg.domain) {
+        html += `<div><span class="config-label">Domain</span><span class="config-value">${cfg.domain}</span></div>`;
+      }
+      html += '</div>';
+      if (summaryEl) summaryEl.innerHTML = html;
+    } else {
+      // Show form state
+      if (formEl) formEl.style.display = "block";
+      if (configuredEl) configuredEl.style.display = "none";
     }
   } catch (e) {
-    statusEl.innerHTML = `<p style="color:#ef4444;">Error: ${e}</p>`;
+    console.error("Failed to load deploy config:", e);
+    // Show form as fallback
+    if (formEl) formEl.style.display = "block";
+    if (configuredEl) configuredEl.style.display = "none";
+  }
+}
+
+async function saveDeployConfig() {
+  if (!state.currentApp) return;
+
+  const server = document.getElementById("deploy-server")?.value?.trim();
+  const sshUser = document.getElementById("deploy-ssh-user")?.value?.trim() || "root";
+  const registry = document.getElementById("deploy-registry")?.value || "Docker Hub";
+  const appName = document.getElementById("deploy-app-name")?.value?.trim();
+  const registryUsername = document.getElementById("deploy-registry-username")?.value?.trim();
+  const registryPassword = document.getElementById("deploy-registry-password")?.value?.trim();
+  const domain = document.getElementById("deploy-domain")?.value?.trim() || null;
+  const masterKey = document.getElementById("deploy-master-key")?.value?.trim();
+
+  if (!server) {
+    showToast("Server IP or hostname is required");
+    return;
+  }
+  if (!registryUsername) {
+    showToast("Registry username is required");
+    return;
+  }
+  if (!registryPassword) {
+    showToast("Registry password is required");
+    return;
+  }
+  if (!masterKey) {
+    showToast("Rails Master Key is required");
+    return;
+  }
+
+  const config = {
+    server,
+    ssh_user: sshUser,
+    registry,
+    app_name: appName || state.currentApp.name,
+    registry_username: registryUsername,
+    registry_password: registryPassword,
+    domain: domain || null,
+    rails_master_key: masterKey,
+  };
+
+  try {
+    await invoke("save_deploy_config", { name: state.currentApp.name, config });
+    showToast("Deploy configuration saved");
+    loadDeployConfig();
+  } catch (e) {
+    showToast(`Error: ${e}`);
   }
 }
 
@@ -1108,9 +1176,24 @@ function wireEvents() {
   document.getElementById("add-env-var")?.addEventListener("click", addEnvVar);
   document.getElementById("save-env")?.addEventListener("click", saveEnvFile);
 
+  document.getElementById("save-deploy-config")?.addEventListener("click", saveDeployConfig);
+  document.getElementById("edit-deploy-config")?.addEventListener("click", () => {
+    document.getElementById("deploy-config-form").style.display = "block";
+    document.getElementById("deploy-configured").style.display = "none";
+  });
   document.getElementById("kamal-setup")?.addEventListener("click", () => runKamalCommand("setup"));
   document.getElementById("kamal-deploy")?.addEventListener("click", () => runKamalCommand("deploy"));
   document.getElementById("kamal-logs")?.addEventListener("click", () => runKamalCommand("logs"));
+  document.getElementById("kamal-remove")?.addEventListener("click", async () => {
+    if (!state.currentApp) return;
+    const confirmed = await invoke("confirm_dialog", {
+      title: "Remove Deployment",
+      message: `This will remove the Kamal deployment for ${state.currentApp.name} from the remote server. Are you sure?`
+    });
+    if (confirmed) {
+      runKamalCommand("remove");
+    }
+  });
 
   document.getElementById("redis-scan")?.addEventListener("click", scanRedisKeys);
 

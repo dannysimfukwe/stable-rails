@@ -314,14 +314,82 @@
 
             <div class="tab-content" id="tab-deploy">
               <div class="deploy-container">
-                <div class="deploy-status" id="deploy-status">
-                  <p class="placeholder">Checking deployment configuration...</p>
+                <!-- Configuration Form (shown when not configured) -->
+                <div class="deploy-config-form" id="deploy-config-form">
+                  <div class="deploy-form-header">
+                    <h3>Deploy Configuration</h3>
+                    <p class="deploy-form-subtitle">Configure Kamal deployment for your app</p>
+                  </div>
+
+                  <div class="deploy-form-grid">
+                    <div class="form-group">
+                      <label for="deploy-server">Server IP / Hostname</label>
+                      <input type="text" id="deploy-server" placeholder="e.g. 123.456.789.0">
+                    </div>
+
+                    <div class="form-group">
+                      <label for="deploy-ssh-user">SSH User</label>
+                      <input type="text" id="deploy-ssh-user" placeholder="root" value="root">
+                    </div>
+
+                    <div class="form-group">
+                      <label for="deploy-registry">Container Registry</label>
+                      <select id="deploy-registry">
+                        <option value="Docker Hub">Docker Hub</option>
+                        <option value="GitHub Container Registry">GitHub Container Registry</option>
+                        <option value="GitLab Container Registry">GitLab Container Registry</option>
+                      </select>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="deploy-app-name">App Name</label>
+                      <input type="text" id="deploy-app-name" placeholder="my-app">
+                    </div>
+
+                    <div class="form-group">
+                      <label for="deploy-registry-username">Registry Username</label>
+                      <input type="text" id="deploy-registry-username" placeholder="username">
+                    </div>
+
+                    <div class="form-group">
+                      <label for="deploy-registry-password">Registry Password / Token</label>
+                      <input type="password" id="deploy-registry-password" placeholder="••••••••">
+                    </div>
+
+                    <div class="form-group">
+                      <label for="deploy-domain">Domain (optional)</label>
+                      <input type="text" id="deploy-domain" placeholder="app.example.com">
+                    </div>
+
+                    <div class="form-group">
+                      <label for="deploy-master-key">Rails Master Key</label>
+                      <input type="password" id="deploy-master-key" placeholder="•••••••••••••••••••••••••••••••••">
+                    </div>
+                  </div>
+
+                  <div class="deploy-form-actions">
+                    <button class="primary" id="save-deploy-config">Save Configuration</button>
+                  </div>
                 </div>
-                <div class="deploy-actions" id="deploy-actions" style="display:none;">
-                  <button class="primary" id="kamal-setup">Kamal Setup</button>
-                  <button class="primary" id="kamal-deploy">Deploy</button>
-                  <button class="ghost" id="kamal-logs">Logs</button>
+
+                <!-- Configured State (shown when config exists) -->
+                <div class="deploy-configured" id="deploy-configured" style="display:none;">
+                  <div class="deploy-config-card">
+                    <div class="deploy-config-header">
+                      <h3>Deployment Configured</h3>
+                      <button class="ghost" id="edit-deploy-config">Edit</button>
+                    </div>
+                    <div class="deploy-config-summary" id="deploy-config-summary"></div>
+                  </div>
+
+                  <div class="deploy-actions" id="deploy-actions">
+                    <button class="primary" id="kamal-setup">Kamal Setup</button>
+                    <button class="primary" id="kamal-deploy">Deploy</button>
+                    <button class="ghost" id="kamal-logs">Logs</button>
+                    <button class="ghost danger" id="kamal-remove">Remove</button>
+                  </div>
                 </div>
+
                 <div class="deploy-output" id="deploy-output"></div>
               </div>
             </div>

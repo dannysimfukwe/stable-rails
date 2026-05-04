@@ -2157,3 +2157,129 @@ pre {
   min-width: 100px;
 }
 
+/* Deploy Config Form */
+.deploy-config-form {
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.deploy-form-header {
+  margin-bottom: 24px;
+}
+
+.deploy-form-header h3 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+}
+
+.deploy-form-subtitle {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.deploy-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.deploy-form-grid .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.deploy-form-grid .form-group label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.deploy-form-grid .form-group input,
+.deploy-form-grid .form-group select {
+  background: rgba(10, 14, 23, 0.8);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--ink);
+  font-size: 14px;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+
+.deploy-form-grid .form-group input:focus,
+.deploy-form-grid .form-group select:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+.deploy-form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Deploy Configured State */
+.deploy-configured {
+  margin-bottom: 16px;
+}
+
+.deploy-config-card {
+  padding: 20px 24px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.deploy-config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.deploy-config-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.config-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.config-summary-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.config-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink-soft);
+}
+
+.config-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  font-family: "IBM Plex Mono", "SF Mono", monospace;
+}
+
+.deploy-actions button.danger {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.deploy-actions button.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+

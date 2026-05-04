@@ -20,6 +20,7 @@ const state = {
   uptimeTimer: null,
   consoleHistory: [],
   consoleHistoryIndex: -1,
+  consoleMode: "command", // "command" or "console"
 };
 
 function setStatus(message, isError = false) {
@@ -634,11 +635,15 @@ async function sendConsoleCommand() {
   if (!cmd || !state.currentApp) return;
 
   const trimmed = cmd.trim().toLowerCase();
-  const isInteractive = trimmed === "c" || trimmed === "console"
-    || trimmed.startsWith("rails c") || trimmed.startsWith("rails console")
-    || trimmed === "irb" || trimmed === "exit";
+  
+  // Detect if entering or leaving console mode
+  if (trimmed === "c" || trimmed === "console" || trimmed.startsWith("rails c") || trimmed.startsWith("rails console")) {
+    state.consoleMode = "console";
+  } else if (trimmed === "exit") {
+    state.consoleMode = "command";
+  }
 
-  const invokeCmd = isInteractive ? "rails_console" : "rails_command";
+  const invokeCmd = state.consoleMode === "console" ? "rails_console" : "rails_command";
 
   state.consoleHistory.push(cmd);
   state.consoleHistoryIndex = state.consoleHistory.length;

@@ -185,11 +185,24 @@ fn rails_console(name: String, command: String) -> Result<String, String> {
         Ok(format!("{}{}", stdout, stderr))
     } else {
         let script_path = "/tmp/stable_console.rb";
-        let wrapped = if command.trim().starts_with("puts") || command.trim().starts_with("p ") {
-            command.clone()
+        let command_trimmed = command.trim();
+
+        let wrapped = if command_trimmed.starts_with("puts") || command_trimmed.starts_with("p ")
+            || command_trimmed.starts_with("rails ")
+            || command_trimmed.starts_with("bundle ")
+            || command_trimmed.starts_with("rake ")
+            || command_trimmed.starts_with("yarn ")
+            || command_trimmed.starts_with("npm ")
+            || command_trimmed.starts_with("ruby ")
+            || command_trimmed.starts_with("gem ")
+        {
+            command_trimmed.to_string()
+        } else if command_trimmed.starts_with("generate ") || command_trimmed.starts_with("g ") {
+            format!("rails {}", command_trimmed)
         } else {
             format!("puts ({})", command)
         };
+
         std::fs::write(script_path, &wrapped).map_err(|e| e.to_string())?;
 
         let output = std::process::Command::new("/bin/zsh")
@@ -214,6 +227,29 @@ fn rails_console(name: String, command: String) -> Result<String, String> {
             Ok(stdout)
         }
     }
+}
+
+#[tauri::command]
+fn rails_command(name: String, command: String) -> Result<String, String> {
+    let app_path = stable::utils::apps_folder().join(&name);
+    let (ruby_path, bundle_path) =
+        stable::ruby_manager::ensure_ruby_for_app(&app_path).map_err(|e| e.to_string())?;
+
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg(&format!(
+            "cd '{}' && '{}' '{}' exec {}",
+            app_path.display(),
+            ruby_path.display(),
+            bundle_path.display(),
+            command
+        ))
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    Ok(format!("{}{}", stdout, stderr))
 }
 
 #[tauri::command]
@@ -566,6 +602,7 @@ pub fn run() {
             pick_folder,
             load_app_config,
             rails_console,
+            rails_command,
             db_tables,
             db_query,
             redis_scan,

@@ -566,15 +566,22 @@ function consoleLog(text, type = "output") {
 async function sendConsoleCommand() {
   const cmd = consoleInput?.value?.trim();
   if (!cmd || !state.currentApp) return;
-  
+
+  const trimmed = cmd.trim().toLowerCase();
+  const isInteractive = trimmed === "c" || trimmed === "console"
+    || trimmed.startsWith("rails c") || trimmed.startsWith("rails console")
+    || trimmed === "irb" || trimmed === "exit";
+
+  const invokeCmd = isInteractive ? "rails_console" : "rails_command";
+
   state.consoleHistory.push(cmd);
   state.consoleHistoryIndex = state.consoleHistory.length;
-  
+
   consoleLog(`>> ${cmd}`, "input");
   consoleInput.value = "";
-  
+
   try {
-    const result = await invoke("rails_console", { name: state.currentApp.name, command: cmd });
+    const result = await invoke(invokeCmd, { name: state.currentApp.name, command: cmd });
     if (result) {
       consoleLog(result, "output");
     }

@@ -1,6 +1,158 @@
 use crate::stable::config::apps_folder;
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DependencyStatus {
+    pub name: String,
+    pub installed: bool,
+    pub version: Option<String>,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DependenciesStatus {
+    pub homebrew: DependencyStatus,
+    pub caddy: DependencyStatus,
+    pub mkcert: DependencyStatus,
+    pub ruby: DependencyStatus,
+}
+
+fn check_command_exists(cmd: &str) -> (bool, Option<String>) {
+    let output = std::process::Command::new("/bin/zsh")
+        .arg("-lc")
+        .arg(&format!("which {}", cmd))
+        .output();
+
+    match output {
+        Ok(o) if o.status.success() => {
+            let path = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            (true, Some(path))
+        }
+        _ => (false, None),
+    }
+}
+
+fn get_homebrew_status() -> DependencyStatus {
+    let (found, path) = check_command_exists("brew");
+    if found {
+        let version = std::process::Command::new("/bin/zsh")
+            .arg("-lc")
+            .arg("brew --version")
+            .output()
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+
+        DependencyStatus {
+            name: "Homebrew".to_string(),
+            installed: true,
+            version,
+            message: path.unwrap_or_default(),
+        }
+    } else {
+        DependencyStatus {
+            name: "Homebrew".to_string(),
+            installed: false,
+            version: None,
+            message: "Not found - install from brew.sh".to_string(),
+        }
+    }
+}
+
+fn get_caddy_status() -> DependencyStatus {
+    let (found, path) = check_command_exists("caddy");
+    if found {
+        let version = std::process::Command::new("/bin/zsh")
+            .arg("-lc")
+            .arg("caddy version")
+            .output()
+            .ok()
+            .and_then(|o| {
+                let v = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                Some(v.lines().next().unwrap_or(&v).to_string())
+            });
+
+        DependencyStatus {
+            name: "Caddy".to_string(),
+            installed: true,
+            version,
+            message: path.unwrap_or_default(),
+        }
+    } else {
+        DependencyStatus {
+            name: "Caddy".to_string(),
+            installed: false,
+            version: None,
+            message: "Not found".to_string(),
+        }
+    }
+}
+
+fn get_mkcert_status() -> DependencyStatus {
+    let (found, path) = check_command_exists("mkcert");
+    if found {
+        let version = std::process::Command::new("/bin/zsh")
+            .arg("-lc")
+            .arg("mkcert --version")
+            .output()
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+
+        DependencyStatus {
+            name: "mkcert".to_string(),
+            installed: true,
+            version,
+            message: path.unwrap_or_default(),
+        }
+    } else {
+        DependencyStatus {
+            name: "mkcert".to_string(),
+            installed: false,
+            version: None,
+            message: "Not found".to_string(),
+        }
+    }
+}
+
+fn get_ruby_status() -> DependencyStatus {
+    let rvm = check_command_exists("rvm").0;
+    let rbenv = check_command_exists("rbenv").0;
+    let ruby = check_command_exists("ruby").0;
+
+    if rvm || rbenv || ruby {
+        let version = std::process::Command::new("/bin/zsh")
+            .arg("-lc")
+            .arg("ruby --version")
+            .output()
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+
+        let manager = if rvm { "RVM" } else if rbenv { "rbenv" } else { "system" };
+        DependencyStatus {
+            name: "Ruby".to_string(),
+            installed: true,
+            version,
+            message: format!("Found via {}", manager),
+        }
+    } else {
+        DependencyStatus {
+            name: "Ruby".to_string(),
+            installed: false,
+            version: None,
+            message: "No Ruby manager found".to_string(),
+        }
+    }
+}
+
+pub fn get_status() -> DependenciesStatus {
+    DependenciesStatus {
+        homebrew: get_homebrew_status(),
+        caddy: get_caddy_status(),
+        mkcert: get_mkcert_status(),
+        ruby: get_ruby_status(),
+    }
+}
 
 struct Check {
     name: String,
@@ -22,7 +174,7 @@ fn run_check(name: &str, cmd: &str, args: &[&str]) -> Check {
     }
 }
 
-fn install_caddy() -> Result<String> {
+pub fn install_caddy() -> Result<String> {
     let output = std::process::Command::new("/bin/zsh")
         .arg("-lc")
         .arg("brew install caddy")
@@ -36,7 +188,7 @@ fn install_caddy() -> Result<String> {
     }
 }
 
-fn install_mkcert() -> Result<String> {
+pub fn install_mkcert() -> Result<String> {
     let output = std::process::Command::new("/bin/zsh")
         .arg("-lc")
         .arg("brew install mkcert")

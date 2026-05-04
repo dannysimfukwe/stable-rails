@@ -1989,3 +1989,73 @@ pre {
   font-size: 14px;
 }
 
+.dependencies-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dep-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.dep-icon {
+  width: 56px;
+  height: 56px;
+  background: rgba(59, 130, 246, 0.15);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #3b82f6;
+}
+
+.dep-info {
+  flex: 1;
+}
+
+.dep-info h4 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+}
+
+.dep-desc {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0 0 8px 0;
+}
+
+.dep-status {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--ink-soft);
+}
+
+.dep-status.installed {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.dep-status.missing {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.dep-status.installing {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.dep-action {
+  min-width: 100px;
+}
+

@@ -116,6 +116,20 @@ fn doctor() -> Result<DoctorReport, String> {
 }
 
 #[tauri::command]
+fn dependencies_status() -> Result<stable::doctor::DependenciesStatus, String> {
+    Ok(stable::doctor::get_status())
+}
+
+#[tauri::command]
+fn install_dependency(dep: String) -> Result<String, String> {
+    match dep.as_str() {
+        "caddy" => stable::doctor::install_caddy().map_err(|e| e.to_string()),
+        "mkcert" => stable::doctor::install_mkcert().map_err(|e| e.to_string()),
+        _ => Ok(format!("Unknown dependency: {}", dep)),
+    }
+}
+
+#[tauri::command]
 fn apps_folder() -> Result<String, String> {
     Ok(stable::utils::apps_folder().to_string_lossy().to_string())
 }
@@ -763,6 +777,8 @@ pub fn run() {
             restart_app,
             secure_app,
             doctor,
+            dependencies_status,
+            install_dependency,
             apps_folder,
             open_folder,
             open_url,

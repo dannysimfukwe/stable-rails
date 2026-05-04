@@ -61,8 +61,10 @@ function appendLog(line) {
 }
 
 function switchView(view) {
+  console.log("switchView called with:", view);
   if (!views.apps) {
     views.apps = document.querySelector("#apps-view");
+    views.dependencies = document.querySelector("#dependencies-view");
     views.doctor = document.querySelector("#doctor-view");
     views.run = document.querySelector("#run-view");
   }
@@ -78,6 +80,11 @@ function switchView(view) {
   const hero = document.querySelector(".hero");
   if (hero) {
     hero.classList.toggle("is-hidden", view === "run");
+  }
+
+  if (view === "dependencies") {
+    console.log("Loading dependencies...");
+    loadDependencies();
   }
 }
 
@@ -209,6 +216,61 @@ async function loadAppsWithRunningState() {
   } catch (error) {
     setStatus("Error loading apps", true);
     showToast(String(error));
+  }
+}
+
+async function loadDependencies() {
+  try {
+    const status = await invoke("dependencies_status");
+    console.log("Status:", JSON.stringify(status));
+
+    function updateStatus(statusId, dep) {
+      const statusEl = document.getElementById(statusId);
+      if (!statusEl) return;
+
+      if (dep.installed) {
+        statusEl.textContent = dep.version || "Installed";
+        statusEl.style.color = "#22c55e";
+      } else {
+        statusEl.textContent = dep.message || "Not installed";
+        statusEl.style.color = "#ef4444";
+      }
+    }
+
+    updateStatus("deps-homebrew-status", status.homebrew);
+    updateStatus("deps-caddy-status", status.caddy);
+    updateStatus("deps-mkcert-status", status.mkcert);
+    updateStatus("deps-ruby-status", status.ruby);
+
+  } catch (error) {
+    console.error("Error:", error);
+    const ids = ["deps-homebrew-status", "deps-caddy-status", "deps-mkcert-status", "deps-ruby-status"];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.textContent = "Error loading";
+        el.style.color = "#ef4444";
+      }
+    });
+  }
+}
+
+async function installDependency(dep) {
+  const statusEl = document.getElementById(`${dep}-status`);
+  const actionBtn = document.getElementById(`install-${dep}`);
+  if (statusEl) {
+    statusEl.textContent = "Installing...";
+    statusEl.className = "dep-status installing";
+  }
+  if (actionBtn) actionBtn.disabled = true;
+
+  try {
+    const result = await invoke("install_dependency", { dep });
+    showToast(result);
+    await loadDependencies();
+  } catch (error) {
+    showToast("Failed to install " + dep + ": " + error);
+    await loadDependencies();
   }
 }
 
@@ -740,6 +802,7 @@ function wireEvents() {
   logsOutput = document.getElementById("logs-output");
 
   views.apps = document.querySelector("#apps-view");
+  views.dependencies = document.querySelector("#dependencies-view");
   views.doctor = document.querySelector("#doctor-view");
   views.run = runView;
 
@@ -761,6 +824,11 @@ function wireEvents() {
 
   document.querySelector("#refresh-apps").addEventListener("click", loadApps);
   document.querySelector("#run-doctor")?.addEventListener("click", runDoctor);
+
+  document.querySelector("#refresh-deps")?.addEventListener("click", loadDependencies);
+  document.querySelector("#install-caddy")?.addEventListener("click", () => installDependency("caddy"));
+  document.querySelector("#install-mkcert")?.addEventListener("click", () => installDependency("mkcert"));
+  document.querySelector("#check-ruby")?.addEventListener("click", loadDependencies);
   document.querySelector("#add-app")?.addEventListener("click", () => {
     browseFolder();
   });

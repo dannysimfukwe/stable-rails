@@ -28,6 +28,10 @@
             <span>Apps</span>
             <span class="nav-note">Active workspace</span>
           </button>
+          <button class="nav-item" data-view="dependencies">
+            <span>Dependencies</span>
+            <span class="nav-note">Tools setup</span>
+          </button>
           <button class="nav-item" data-view="doctor">
             <span>Doctor</span>
             <span class="nav-note">Diagnostics</span>
@@ -365,6 +369,54 @@
                     <button class="primary" id="save-settings">Save Settings</button>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view is-hidden" id="dependencies-view">
+          <div class="section-header">
+            <div>
+              <h3>Dependencies</h3>
+              <p>Tools required for Stable to manage your Rails apps.</p>
+            </div>
+            <button class="ghost" id="refresh-deps">Refresh</button>
+          </div>
+          <div id="deps-container" style="padding: 16px;">
+            <div style="padding:20px; background:rgba(15,23,42,0.75); border:1px solid var(--border); border-radius:12px; margin-bottom:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <h4 style="margin:0 0 4px 0;">Homebrew</h4>
+                  <p style="color:var(--ink-soft); font-size:13px; margin:0;">Package manager for macOS</p>
+                </div>
+                <span id="deps-homebrew-status" style="font-size:12px; color:#94a3b8;">Checking...</span>
+              </div>
+            </div>
+            <div style="padding:20px; background:rgba(15,23,42,0.75); border:1px solid var(--border); border-radius:12px; margin-bottom:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <h4 style="margin:0 0 4px 0;">Caddy</h4>
+                  <p style="color:var(--ink-soft); font-size:13px; margin:0;">Web server with automatic HTTPS</p>
+                </div>
+                <span id="deps-caddy-status" style="font-size:12px; color:#94a3b8;">Checking...</span>
+              </div>
+            </div>
+            <div style="padding:20px; background:rgba(15,23,42,0.75); border:1px solid var(--border); border-radius:12px; margin-bottom:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <h4 style="margin:0 0 4px 0;">mkcert</h4>
+                  <p style="color:var(--ink-soft); font-size:13px; margin:0;">Local HTTPS certificate tool</p>
+                </div>
+                <span id="deps-mkcert-status" style="font-size:12px; color:#94a3b8;">Checking...</span>
+              </div>
+            </div>
+            <div style="padding:20px; background:rgba(15,23,42,0.75); border:1px solid var(--border); border-radius:12px; margin-bottom:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <h4 style="margin:0 0 4px 0;">Ruby</h4>
+                  <p style="color:var(--ink-soft); font-size:13px; margin:0;">Ruby versions via RVM/Rbenv</p>
+                </div>
+                <span id="deps-ruby-status" style="font-size:12px; color:#94a3b8;">Checking...</span>
               </div>
             </div>
           </div>

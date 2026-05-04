@@ -1336,7 +1336,7 @@ window.deleteEnvVar = deleteEnvVar;
 window.addEnvVar = addEnvVar;
 window.saveEnvFile = saveEnvFile;
 window.loadEnvFile = loadEnvFile;
-window.checkDeployStatus = checkDeployStatus;
+window.loadDeployConfig = loadDeployConfig;
 window.runKamalCommand = runKamalCommand;
 
 window.addEventListener("DOMContentLoaded", () => {

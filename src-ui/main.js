@@ -1177,9 +1177,28 @@ function wireEvents() {
   document.getElementById("save-env")?.addEventListener("click", saveEnvFile);
 
   document.getElementById("save-deploy-config")?.addEventListener("click", saveDeployConfig);
-  document.getElementById("edit-deploy-config")?.addEventListener("click", () => {
+  document.getElementById("edit-deploy-config")?.addEventListener("click", async () => {
     document.getElementById("deploy-config-form").style.display = "block";
     document.getElementById("deploy-configured").style.display = "none";
+    
+    // Fetch and populate existing config
+    if (!state.currentApp) return;
+    try {
+      const result = await invoke("get_deploy_config", { name: state.currentApp.name });
+      if (result.configured && result.config) {
+        const cfg = result.config;
+        document.getElementById("deploy-server").value = cfg.server || "";
+        document.getElementById("deploy-ssh-user").value = cfg.ssh_user || "root";
+        document.getElementById("deploy-registry").value = cfg.registry || "Docker Hub";
+        document.getElementById("deploy-app-name").value = cfg.app_name || "";
+        document.getElementById("deploy-registry-username").value = cfg.registry_username || "";
+        document.getElementById("deploy-registry-password").value = cfg.registry_password || "";
+        document.getElementById("deploy-domain").value = cfg.domain || "";
+        document.getElementById("deploy-master-key").value = cfg.rails_master_key || "";
+      }
+    } catch (e) {
+      console.error("Failed to load deploy config for editing:", e);
+    }
   });
   document.getElementById("kamal-setup")?.addEventListener("click", () => runKamalCommand("setup"));
   document.getElementById("kamal-deploy")?.addEventListener("click", () => runKamalCommand("deploy"));

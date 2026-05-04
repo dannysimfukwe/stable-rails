@@ -397,16 +397,35 @@ function formatUptime(startedAt) {
   return `${seconds}s`;
 }
 
+function clearDeployForm() {
+  const fields = [
+    "deploy-server",
+    "deploy-ssh-user",
+    "deploy-app-name",
+    "deploy-registry-username",
+    "deploy-registry-password",
+    "deploy-domain",
+    "deploy-master-key",
+  ];
+  fields.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  const registrySelect = document.getElementById("deploy-registry");
+  if (registrySelect) registrySelect.value = "Docker Hub";
+}
+
 function resetAppTabs() {
-  // Reset deploy tab
+  // Reset deploy tab — clear output, hide panels, wipe form fields
   const deployOutput = document.getElementById("deploy-output");
   if (deployOutput) deployOutput.textContent = "";
-  
+
   const deployForm = document.getElementById("deploy-config-form");
   const deployConfigured = document.getElementById("deploy-configured");
   if (deployForm) deployForm.style.display = "none";
   if (deployConfigured) deployConfigured.style.display = "none";
-  
+  clearDeployForm();
+
   // Reset console
   const consoleOutputEl = document.getElementById("console-output");
   if (consoleOutputEl) {
@@ -415,21 +434,21 @@ function resetAppTabs() {
   state.consoleMode = "command";
   state.consoleHistory = [];
   state.consoleHistoryIndex = -1;
-  
+
   // Reset database
   const tableListEl = document.getElementById("table-list");
   if (tableListEl) tableListEl.innerHTML = '<li class="table-item">Loading tables...</li>';
   state.currentTable = null;
   state.currentColumns = [];
-  
+
   // Reset logs
   const logsOutputEl = document.getElementById("logs-output");
   if (logsOutputEl) logsOutputEl.textContent = "No logs yet. Start the app to see logs here.";
-  
+
   // Reset redis
   const redisResultsEl = document.getElementById("redis-results");
   if (redisResultsEl) redisResultsEl.innerHTML = '<p class="placeholder">Enter a key pattern to search Redis keys</p>';
-  
+
   // Reset env
   const envTbody = document.getElementById("env-tbody");
   if (envTbody) envTbody.innerHTML = '<tr><td colspan="3" class="placeholder">Loading .env file...</td></tr>';
@@ -724,14 +743,9 @@ async function loadDeployConfig() {
   const summaryEl = document.getElementById("deploy-config-summary");
   const outputEl = document.getElementById("deploy-output");
 
-  // Reset output
+  // Reset output and always clear form fields first (prevent stale data from prev app)
   if (outputEl) outputEl.textContent = "";
-
-  // Pre-fill app name in form
-  const appNameInput = document.getElementById("deploy-app-name");
-  if (appNameInput && !appNameInput.value) {
-    appNameInput.value = state.currentApp.name;
-  }
+  clearDeployForm();
 
   try {
     const result = await invoke("get_deploy_config", { name: state.currentApp.name });
@@ -752,15 +766,25 @@ async function loadDeployConfig() {
       html += '</div>';
       if (summaryEl) summaryEl.innerHTML = html;
     } else {
-      // Show form state
+      // Show empty form state with defaults for this app
       if (formEl) formEl.style.display = "block";
       if (configuredEl) configuredEl.style.display = "none";
+
+      const appNameInput = document.getElementById("deploy-app-name");
+      if (appNameInput) appNameInput.value = state.currentApp.name;
+      const sshUserInput = document.getElementById("deploy-ssh-user");
+      if (sshUserInput) sshUserInput.value = "root";
     }
   } catch (e) {
     console.error("Failed to load deploy config:", e);
-    // Show form as fallback
+    // Show empty form as fallback
     if (formEl) formEl.style.display = "block";
     if (configuredEl) configuredEl.style.display = "none";
+
+    const appNameInput = document.getElementById("deploy-app-name");
+    if (appNameInput) appNameInput.value = state.currentApp.name;
+    const sshUserInput = document.getElementById("deploy-ssh-user");
+    if (sshUserInput) sshUserInput.value = "root";
   }
 }
 
@@ -1220,7 +1244,8 @@ function wireEvents() {
   document.getElementById("edit-deploy-config")?.addEventListener("click", async () => {
     document.getElementById("deploy-config-form").style.display = "block";
     document.getElementById("deploy-configured").style.display = "none";
-    
+    clearDeployForm();
+
     // Fetch and populate existing config
     if (!state.currentApp) return;
     try {
@@ -1235,9 +1260,15 @@ function wireEvents() {
         document.getElementById("deploy-registry-password").value = cfg.registry_password || "";
         document.getElementById("deploy-domain").value = cfg.domain || "";
         document.getElementById("deploy-master-key").value = cfg.rails_master_key || "";
+      } else {
+        // No config for this app — set defaults
+        document.getElementById("deploy-app-name").value = state.currentApp.name;
+        document.getElementById("deploy-ssh-user").value = "root";
       }
     } catch (e) {
       console.error("Failed to load deploy config for editing:", e);
+      document.getElementById("deploy-app-name").value = state.currentApp.name;
+      document.getElementById("deploy-ssh-user").value = "root";
     }
   });
   document.getElementById("kamal-setup")?.addEventListener("click", () => runKamalCommand("setup"));

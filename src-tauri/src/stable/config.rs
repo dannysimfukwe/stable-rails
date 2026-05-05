@@ -325,8 +325,7 @@ pub fn next_available_port() -> u16 {
 pub fn update_caddyfile() -> Result<()> {
     use crate::stable::utils::run_shell;
 
-    let caddyfile = apps_folder().join("Caddyfile");
-    let certs_folder = PathBuf::from("/Users/dannysimfukwe/StableCaddy/certs");
+    let caddyfile = Path::new("~/StableCaddy/Caddyfile").expand_home();
     let mut content = String::new();
 
     for config in load_all_app_configs()? {
@@ -334,12 +333,22 @@ pub fn update_caddyfile() -> Result<()> {
             continue;
         }
 
-        let cert_path = certs_folder.join(format!("{}.test.pem", config.name));
-        let key_path = certs_folder.join(format!("{}.test-key.pem", config.name));
+        // Look for mkcert-generated certs in the app directory first
+        let cert_path = config.path.join("cert.pem");
+        let key_path = config.path.join("key.pem");
+        let has_certs = cert_path.exists() && key_path.exists();
 
         content.push_str(&format!("{} {{\n", config.domain));
 
-        content.push_str("    tls internal\n");
+        if has_certs {
+            content.push_str(&format!(
+                "    tls {} {}\n",
+                cert_path.display(),
+                key_path.display()
+            ));
+        } else {
+            content.push_str("    tls internal\n");
+        }
         content.push_str(&format!(
             "    reverse_proxy 127.0.0.1:{}\n}}\n",
             config.port

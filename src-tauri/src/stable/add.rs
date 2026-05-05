@@ -3,6 +3,7 @@ use crate::stable::config::{
 };
 use crate::stable::utils::{ensure_hosts_entry, run_shell_output, shell_escape};
 use anyhow::Result;
+use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -33,13 +34,21 @@ pub fn run(folder: &str) -> Result<()> {
 
     let _ = ensure_hosts_entry(&domain)?;
 
-    let certs_folder = PathBuf::from("/Users/dannysimfukwe/StableCaddy/certs");
-    let cert_path = certs_folder.join(format!("{}.test.pem", app_name));
-    let key_path = certs_folder.join(format!("{}.test-key.pem", app_name));
+    let cert_path = target.join("cert.pem");
+    let key_path = target.join("key.pem");
 
     if !cert_path.exists() || !key_path.exists() {
         let escaped_name = shell_escape(&app_name);
-        let _ = run_shell_output(&certs_folder, &format!("mkcert '{}'", escaped_name));
+        let _ = run_shell_output(&target, &format!("mkcert '{}.test'", escaped_name));
+        // Move generated certs to expected locations
+        let generated_cert = target.join(format!("{}.test.pem", app_name));
+        let generated_key = target.join(format!("{}.test-key.pem", app_name));
+        if generated_cert.exists() {
+            let _ = fs::rename(&generated_cert, &cert_path);
+        }
+        if generated_key.exists() {
+            let _ = fs::rename(&generated_key, &key_path);
+        }
     }
 
     let mut app_config = AppConfig::default();

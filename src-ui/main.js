@@ -293,6 +293,61 @@ async function runDoctor() {
   }
 }
 
+function openAddExistingModal() {
+  const modal = document.getElementById("add-existing-modal");
+  if (!modal) return;
+  document.getElementById("modal-app-name").value = "";
+  document.getElementById("modal-app-path").value = "";
+  modal.style.display = "flex";
+  document.getElementById("modal-app-name")?.focus();
+}
+
+function closeAddExistingModal() {
+  const modal = document.getElementById("add-existing-modal");
+  if (modal) modal.style.display = "none";
+}
+
+async function modalBrowseFolder() {
+  try {
+    const result = await invoke("pick_folder", { title: "Select Rails App Folder" });
+    if (result) {
+      const input = document.getElementById("modal-app-path");
+      if (input) input.value = result;
+    }
+  } catch (error) {
+    showToast(`Error selecting folder: ${error}`);
+  }
+}
+
+async function modalAddApp() {
+  const nameInput = document.getElementById("modal-app-name");
+  const pathInput = document.getElementById("modal-app-path");
+  if (!nameInput || !pathInput) return;
+
+  const name = nameInput.value.trim();
+  const folder = pathInput.value.trim();
+
+  if (!name) {
+    showToast("Enter an app name first");
+    return;
+  }
+  if (!folder) {
+    showToast("Select a folder first");
+    return;
+  }
+
+  closeAddExistingModal();
+  setStatus("Adding app...");
+  try {
+    await invoke("add_app", { folder });
+    showToast("App added");
+    loadAppsWithRunningState();
+  } catch (error) {
+    setStatus("Add failed", true);
+    showToast(String(error));
+  }
+}
+
 async function addApp() {
   const input = document.querySelector("#existing-app-path");
   const addBtn = document.querySelector("#add-app-submit");
@@ -1139,9 +1194,7 @@ function wireEvents() {
   document.querySelector("#install-caddy")?.addEventListener("click", () => installDependency("caddy"));
   document.querySelector("#install-mkcert")?.addEventListener("click", () => installDependency("mkcert"));
   document.querySelector("#check-ruby")?.addEventListener("click", loadDependencies);
-  document.querySelector("#add-app")?.addEventListener("click", () => {
-    browseFolder();
-  });
+  document.querySelector("#add-app")?.addEventListener("click", openAddExistingModal);
   document.querySelector("#new-app")?.addEventListener("click", openNewAppModal);
   document.querySelector("#new-app-modal-close")?.addEventListener("click", closeNewAppModal);
   document.querySelector("#new-app-cancel")?.addEventListener("click", closeNewAppModal);
@@ -1157,6 +1210,17 @@ function wireEvents() {
   document.getElementById("new-app-modal")?.addEventListener("click", (e) => {
     if (e.target.id === "new-app-modal") {
       closeNewAppModal();
+    }
+  });
+
+  // Add Existing App Modal
+  document.getElementById("modal-close")?.addEventListener("click", closeAddExistingModal);
+  document.getElementById("modal-cancel")?.addEventListener("click", closeAddExistingModal);
+  document.getElementById("modal-browse")?.addEventListener("click", modalBrowseFolder);
+  document.getElementById("modal-add-app")?.addEventListener("click", modalAddApp);
+  document.getElementById("add-existing-modal")?.addEventListener("click", (e) => {
+    if (e.target.id === "add-existing-modal") {
+      closeAddExistingModal();
     }
   });
 

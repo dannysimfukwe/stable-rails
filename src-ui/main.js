@@ -592,8 +592,8 @@ async function loadAppInfo(appName) {
     if (config) {
       const rubyEl = document.getElementById("run-ruby-version");
       const railsEl = document.getElementById("run-rails-version");
-      if (rubyEl) rubyEl.textContent = config.ruby || config.ruby_version || "-";
-      if (railsEl) railsEl.textContent = config.rails_env || "-";
+      if (rubyEl) rubyEl.textContent = config.ruby_version || config.ruby || "-";
+      if (railsEl) railsEl.textContent = config.rails_version || "-";
 
       // Check if app is actually running
       const apps = await invoke("list_apps");

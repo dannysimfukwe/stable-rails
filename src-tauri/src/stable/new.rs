@@ -141,6 +141,16 @@ where
         log("Warning: bundle install had issues, continuing...");
     }
 
+    // Create the database so the app is ready to use immediately
+    progress("Creating database...");
+    let db_create_output = run_shell_output(&app_path, "bundle exec rails db:create")?;
+    log_output(&log, &db_create_output);
+    if db_create_output.status.success() {
+        log("Database created successfully");
+    } else {
+        log("Warning: database creation had issues (database server may not be running)");
+    }
+
     // Run generators for installed gems
     if opts.install_devise {
         progress("Installing Devise...");
@@ -171,6 +181,16 @@ where
         fs::create_dir_all(app_path.join("config/initializers"))?;
         fs::write(&initializer, "require 'sidekiq/web'\n")?;
         log("Sidekiq initializer created");
+    }
+
+    // Run db:migrate so the schema is up to date after generators
+    progress("Running database migrations...");
+    let db_migrate_output = run_shell_output(&app_path, "bundle exec rails db:migrate")?;
+    log_output(&log, &db_migrate_output);
+    if db_migrate_output.status.success() {
+        log("Database migrated successfully");
+    } else {
+        log("Warning: database migration had issues (this is normal for a fresh app)");
     }
 
     // Generate TLS certificates

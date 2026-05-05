@@ -1514,16 +1514,19 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   listen("show-about", () => {
-    document.getElementById("about-modal")?.classList.add("is-visible");
+    const modal = document.getElementById("about-modal");
+    if (modal) modal.style.display = "flex";
   });
 
   document.getElementById("about-close")?.addEventListener("click", () => {
-    document.getElementById("about-modal")?.classList.remove("is-visible");
+    const modal = document.getElementById("about-modal");
+    if (modal) modal.style.display = "none";
   });
 
   document.getElementById("about-modal")?.addEventListener("click", (e) => {
     if (e.target.id === "about-modal") {
-      document.getElementById("about-modal")?.classList.remove("is-visible");
+      const modal = document.getElementById("about-modal");
+      if (modal) modal.style.display = "none";
     }
   });
 });

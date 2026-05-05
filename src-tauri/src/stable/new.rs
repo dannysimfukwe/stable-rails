@@ -12,6 +12,8 @@ pub struct RailsAppOptions {
     pub ruby_version: Option<String>,
     pub api_only: bool,
     pub database: String,
+    pub db_user: Option<String>,
+    pub db_password: Option<String>,
     pub install_devise: bool,
     pub install_rspec: bool,
     pub install_factory_bot: bool,
@@ -45,6 +47,8 @@ where
         ruby_version: None,
         api_only: false,
         database: "sqlite3".to_string(),
+        db_user: None,
+        db_password: None,
         install_devise: false,
         install_rspec: false,
         install_factory_bot: false,
@@ -141,23 +145,36 @@ where
         log("Warning: bundle install had issues, continuing...");
     }
 
-    // Update database.yml for MySQL/PostgreSQL to use sensible defaults
-    // Rails defaults to root/no-password which often fails on local machines
+    // Update database.yml for MySQL/PostgreSQL with user-provided credentials
     if opts.database == "mysql" || opts.database == "postgresql" {
         let db_yml = app_path.join("config/database.yml");
         if db_yml.exists() {
             if let Ok(content) = fs::read_to_string(&db_yml) {
                 let mut updated = content;
+                let username = opts.db_user.as_deref().unwrap_or(
+                    if opts.database == "postgresql" { "postgres" } else { "root" }
+                );
+                let password = opts.db_password.as_deref().unwrap_or("");
+
                 if opts.database == "mysql" {
-                    // Use current OS user instead of root, or root with empty password
-                    updated = updated.replace("username: root", "username: <%= ENV['MYSQL_USER'] || 'root' %>")
-                        .replace("password:", "password: <%= ENV['MYSQL_PASSWORD'] || '' %>");
+                    updated = updated.replace("username: root", &format!("username: {}", username));
+                    // Replace empty password line or password with value
+                    if password.is_empty() {
+                        updated = updated.replace("password:", "password:");
+                    } else {
+                        updated = updated.replace("password:", &format!("password: {}", password));
+                    }
                 } else if opts.database == "postgresql" {
-                    // PostgreSQL often uses the OS username
-                    updated = updated.replace("# username:", "username: <%= ENV['POSTGRES_USER'] || ENV['USER'] || 'postgres' %>")
-                        .replace("# password:", "password: <%= ENV['POSTGRES_PASSWORD'] || '' %>");
+                    // PostgreSQL template often has commented-out username
+                    updated = updated.replace("# username:", "username:");
+                    updated = updated.replace("username:", &format!("username: {}", username));
+                    if !password.is_empty() {
+                        updated = updated.replace("# password:", "password:");
+                        updated = updated.replace("password:", &format!("password: {}", password));
+                    }
                 }
                 let _ = fs::write(&db_yml, updated);
+                log(&format!("Updated database.yml with username: {}", username));
             }
         }
     }

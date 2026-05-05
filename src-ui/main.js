@@ -431,10 +431,15 @@ async function newApp() {
     return;
   }
 
+  const dbSelect = document.getElementById("new-app-database");
+  const db = dbSelect?.value || "sqlite3";
+
   const options = {
     ruby_version: document.getElementById("new-app-ruby")?.value || null,
     api_only: document.getElementById("new-app-api")?.checked || false,
-    database: document.getElementById("new-app-database")?.value || "sqlite3",
+    database: db,
+    db_user: (db === "mysql" || db === "postgresql") ? document.getElementById("new-app-db-user")?.value || null : null,
+    db_password: (db === "mysql" || db === "postgresql") ? document.getElementById("new-app-db-password")?.value || null : null,
     install_devise: document.getElementById("new-app-devise")?.checked || false,
     install_rspec: document.getElementById("new-app-rspec")?.checked || false,
     install_factory_bot: document.getElementById("new-app-factory-bot")?.checked || false,
@@ -1199,6 +1204,22 @@ function wireEvents() {
   document.querySelector("#new-app-modal-close")?.addEventListener("click", closeNewAppModal);
   document.querySelector("#new-app-cancel")?.addEventListener("click", closeNewAppModal);
   document.querySelector("#new-app-submit")?.addEventListener("click", newApp);
+
+  // Show/hide DB credentials when database selection changes
+  document.getElementById("new-app-database")?.addEventListener("change", (e) => {
+    const credsRow = document.getElementById("db-credentials");
+    if (!credsRow) return;
+    if (e.target.value === "mysql" || e.target.value === "postgresql") {
+      credsRow.style.display = "grid";
+      // Set sensible defaults
+      const userInput = document.getElementById("new-app-db-user");
+      if (userInput && !userInput.value) {
+        userInput.value = e.target.value === "postgresql" ? ("" || "postgres") : "root";
+      }
+    } else {
+      credsRow.style.display = "none";
+    }
+  });
 
   document.getElementById("new-app-name")?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {

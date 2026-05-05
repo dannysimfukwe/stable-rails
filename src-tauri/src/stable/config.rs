@@ -246,8 +246,13 @@ pub fn load_all_app_configs() -> Result<Vec<AppConfig>> {
         let entry = entry?;
         if entry.path().is_dir() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if let Ok(config) = load_app_config(&name) {
-                configs.push(config);
+            match load_app_config(&name) {
+                Ok(config) => {
+                    configs.push(config);
+                }
+                Err(e) => {
+                    eprintln!("[ERROR] Failed to load config for '{}': {}", name, e);
+                }
             }
         }
     }

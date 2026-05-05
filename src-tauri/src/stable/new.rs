@@ -263,28 +263,23 @@ where
         log("Warning: database migration had issues (this is normal for a fresh app)");
     }
 
-    // Generate TLS certificates
-    let cert_path = app_path.join("cert.pem");
-    let key_path = app_path.join("key.pem");
+    // Generate TLS certificates in StableCaddy/certs folder
+    let certs_base = std::path::PathBuf::from(
+        std::env::var("HOME").unwrap_or_default()
+    ).join("StableCaddy/certs");
+    fs::create_dir_all(&certs_base)?;
+    let cert_path = certs_base.join(format!("{}.test.pem", slug_name));
+    let key_path = certs_base.join(format!("{}.test-key.pem", slug_name));
     let domain = format!("{}.test", slug_name);
     let _ = ensure_hosts_entry(&domain)?;
 
     if !cert_path.exists() || !key_path.exists() {
         progress("Generating TLS certificates...");
-        let mkcert_output = run_shell_output(&app_path, &format!("mkcert '{}.test'", escaped_name));
+        let mkcert_output = run_shell_output(&certs_base, &format!("mkcert '{}.test'", escaped_name));
 
         if let Ok(output) = mkcert_output {
             log_output(&log, &output);
-            if output.status.success() {
-                let generated_cert = app_path.join(format!("{}.test.pem", slug_name));
-                let generated_key = app_path.join(format!("{}.test-key.pem", slug_name));
-                if let Err(err) = fs::rename(generated_cert, &cert_path) {
-                    log(&format!("Warning: could not move cert file: {}", err));
-                }
-                if let Err(err) = fs::rename(generated_key, &key_path) {
-                    log(&format!("Warning: could not move key file: {}", err));
-                }
-            } else {
+            if !output.status.success() {
                 log("mkcert failed; continuing without custom certs.");
             }
         }

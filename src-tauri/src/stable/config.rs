@@ -326,6 +326,9 @@ pub fn update_caddyfile() -> Result<()> {
     use crate::stable::utils::run_shell;
 
     let caddyfile = Path::new("~/StableCaddy/Caddyfile").expand_home();
+    let certs_base = std::path::PathBuf::from(
+        std::env::var("HOME").unwrap_or_default()
+    ).join("StableCaddy/certs");
     let mut content = String::new();
 
     for config in load_all_app_configs()? {
@@ -333,9 +336,9 @@ pub fn update_caddyfile() -> Result<()> {
             continue;
         }
 
-        // Look for mkcert-generated certs in the app directory first
-        let cert_path = config.path.join("cert.pem");
-        let key_path = config.path.join("key.pem");
+        // Look for mkcert-generated certs in StableCaddy/certs folder
+        let cert_path = certs_base.join(format!("{}.test.pem", config.name));
+        let key_path = certs_base.join(format!("{}.test-key.pem", config.name));
         let has_certs = cert_path.exists() && key_path.exists();
 
         content.push_str(&format!("{} {{\n", config.domain));

@@ -306,7 +306,16 @@ where
     update_caddyfile()?;
     log("Caddy configuration updated.");
 
-    progress("Stable app ready.");
+    progress("Stable app ready. Starting app...");
+
+    // Auto-start the app so it's immediately available
+    if let Err(e) = crate::stable::start::run(&slug_name) {
+        log(&format!("Warning: Could not auto-start app: {}", e));
+        log("You can start it manually from the app list.");
+    } else {
+        log("App started successfully");
+    }
+
     Ok(())
 }
 

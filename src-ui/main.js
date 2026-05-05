@@ -412,8 +412,32 @@ function openNewAppModal() {
   const modal = document.getElementById("new-app-modal");
   if (!modal) return;
   modal.style.display = "flex";
-  document.getElementById("new-app-name").value = "";
-  document.getElementById("new-app-name").focus();
+
+  // Reset all form fields
+  const nameInput = document.getElementById("new-app-name");
+  if (nameInput) { nameInput.value = ""; nameInput.focus(); }
+
+  const dbSelect = document.getElementById("new-app-database");
+  if (dbSelect) dbSelect.value = "sqlite3";
+
+  const credsRow = document.getElementById("db-credentials");
+  if (credsRow) credsRow.style.display = "none";
+
+  const dbUser = document.getElementById("new-app-db-user");
+  if (dbUser) dbUser.value = "";
+
+  const dbPass = document.getElementById("new-app-db-password");
+  if (dbPass) dbPass.value = "";
+
+  const apiCheck = document.getElementById("new-app-api");
+  if (apiCheck) apiCheck.checked = false;
+
+  const gemChecks = ["devise", "rspec", "factory-bot", "sidekiq", "dotenv"];
+  gemChecks.forEach((gem) => {
+    const el = document.getElementById(`new-app-${gem}`);
+    if (el) el.checked = false;
+  });
+
   loadNewAppRubyVersions();
 }
 
@@ -455,7 +479,7 @@ async function newApp() {
     activityPanel.classList.add("is-busy");
   }
   appendLog("Initializing create...");
-  startAppCreationChecker();
+  startAppCreationChecker(name);
   try {
     await invoke("create_app", { name, options });
     showToast("App creation started in background");
@@ -472,11 +496,31 @@ async function newApp() {
 }
 
 let appCreationCheckInterval = null;
+let appCreationCheckCount = 0;
 
-function startAppCreationChecker() {
+function startAppCreationChecker(appName) {
   if (appCreationCheckInterval) return;
-  appCreationCheckInterval = setInterval(() => {
-    loadAppsWithRunningState();
+  appCreationCheckCount = 0;
+  appCreationCheckInterval = setInterval(async () => {
+    appCreationCheckCount++;
+    await loadAppsWithRunningState();
+
+    // Stop if app is found running, or after 30 seconds (15 checks)
+    const app = state.apps.find((a) => a.name === appName);
+    if (app && app.status === "running") {
+      stopAppCreationChecker();
+      if (activityPanel) {
+        activityStatus.textContent = "App created and running";
+        activityPanel.classList.remove("is-busy");
+      }
+      showToast(`${appName} is running`);
+    } else if (appCreationCheckCount >= 15) {
+      stopAppCreationChecker();
+      if (activityPanel) {
+        activityStatus.textContent = "App created";
+        activityPanel.classList.remove("is-busy");
+      }
+    }
   }, 2000);
 }
 
@@ -484,6 +528,7 @@ function stopAppCreationChecker() {
   if (appCreationCheckInterval) {
     clearInterval(appCreationCheckInterval);
     appCreationCheckInterval = null;
+    appCreationCheckCount = 0;
   }
 }
 
@@ -1211,11 +1256,13 @@ function wireEvents() {
     if (!credsRow) return;
     if (e.target.value === "mysql" || e.target.value === "postgresql") {
       credsRow.style.display = "grid";
-      // Set sensible defaults
+      // Always update default username when switching DB type
       const userInput = document.getElementById("new-app-db-user");
-      if (userInput && !userInput.value) {
-        userInput.value = e.target.value === "postgresql" ? ("" || "postgres") : "root";
+      if (userInput) {
+        userInput.value = e.target.value === "postgresql" ? "postgres" : "root";
       }
+      const passInput = document.getElementById("new-app-db-password");
+      if (passInput) passInput.value = "";
     } else {
       credsRow.style.display = "none";
     }

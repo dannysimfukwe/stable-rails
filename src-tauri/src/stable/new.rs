@@ -141,14 +141,59 @@ where
         log("Warning: bundle install had issues, continuing...");
     }
 
+    // Update database.yml for MySQL/PostgreSQL to use sensible defaults
+    // Rails defaults to root/no-password which often fails on local machines
+    if opts.database == "mysql" || opts.database == "postgresql" {
+        let db_yml = app_path.join("config/database.yml");
+        if db_yml.exists() {
+            if let Ok(content) = fs::read_to_string(&db_yml) {
+                let mut updated = content;
+                if opts.database == "mysql" {
+                    // Use current OS user instead of root, or root with empty password
+                    updated = updated.replace("username: root", "username: <%= ENV['MYSQL_USER'] || 'root' %>")
+                        .replace("password:", "password: <%= ENV['MYSQL_PASSWORD'] || '' %>");
+                } else if opts.database == "postgresql" {
+                    // PostgreSQL often uses the OS username
+                    updated = updated.replace("# username:", "username: <%= ENV['POSTGRES_USER'] || ENV['USER'] || 'postgres' %>")
+                        .replace("# password:", "password: <%= ENV['POSTGRES_PASSWORD'] || '' %>");
+                }
+                let _ = fs::write(&db_yml, updated);
+            }
+        }
+    }
+
     // Create the database so the app is ready to use immediately
     progress("Creating database...");
     let db_create_output = run_shell_output(&app_path, "bundle exec rails db:create")?;
+    let db_stderr = String::from_utf8_lossy(&db_create_output.stderr).to_string();
     log_output(&log, &db_create_output);
+
     if db_create_output.status.success() {
         log("Database created successfully");
+    } else if db_stderr.contains("Access denied") || db_stderr.contains("password") {
+        log("⚠️  Database connection failed: incorrect username/password.");
+        log("");
+        log("For MySQL, fix this by updating config/database.yml:");
+        log("  development:");
+        log("    username: your_mysql_user");
+        log("    password: your_mysql_password");
+        log("");
+        log("Or run: mysql -u root -p");
+        log("  CREATE USER 'stable'@'localhost' IDENTIFIED BY 'stable';");
+        log("  GRANT ALL PRIVILEGES ON *.* TO 'stable'@'localhost';");
+        log("  FLUSH PRIVILEGES;");
+        log("");
+        log("Then update config/database.yml with those credentials.");
+    } else if db_stderr.contains("Connection refused") || db_stderr.contains("can't connect") {
+        log("⚠️  Database server is not running.");
+        log("Start it with:");
+        if opts.database == "mysql" {
+            log("  brew services start mysql");
+        } else if opts.database == "postgresql" {
+            log("  brew services start postgresql");
+        }
     } else {
-        log("Warning: database creation had issues (database server may not be running)");
+        log("Warning: database creation had issues");
     }
 
     // Run generators for installed gems
@@ -186,9 +231,17 @@ where
     // Run db:migrate so the schema is up to date after generators
     progress("Running database migrations...");
     let db_migrate_output = run_shell_output(&app_path, "bundle exec rails db:migrate")?;
+    let migrate_stderr = String::from_utf8_lossy(&db_migrate_output.stderr).to_string();
     log_output(&log, &db_migrate_output);
+
     if db_migrate_output.status.success() {
         log("Database migrated successfully");
+    } else if migrate_stderr.contains("Access denied") || migrate_stderr.contains("password") {
+        log("⚠️  Database migration failed: cannot connect to database.");
+        log("The app was created but you'll need to fix database credentials.");
+        log("Edit config/database.yml with your database username/password.");
+    } else if migrate_stderr.contains("Unknown database") || migrate_stderr.contains("does not exist") {
+        log("⚠️  Database doesn't exist yet. Run 'rails db:create' after fixing credentials.");
     } else {
         log("Warning: database migration had issues (this is normal for a fresh app)");
     }

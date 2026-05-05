@@ -335,14 +335,59 @@ async function browseFolder() {
   }
 }
 
+async function loadNewAppRubyVersions() {
+  const select = document.getElementById("new-app-ruby");
+  if (!select) return;
+  try {
+    const versions = await invoke("list_ruby_versions");
+    // Keep the "System default" option
+    select.innerHTML = '<option value="">System default</option>';
+    versions.forEach((v) => {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = `Ruby ${v}`;
+      select.appendChild(opt);
+    });
+  } catch (e) {
+    console.error("Failed to load Ruby versions:", e);
+  }
+}
+
+function openNewAppModal() {
+  const modal = document.getElementById("new-app-modal");
+  if (!modal) return;
+  modal.style.display = "flex";
+  document.getElementById("new-app-name").value = "";
+  document.getElementById("new-app-name").focus();
+  loadNewAppRubyVersions();
+}
+
+function closeNewAppModal() {
+  const modal = document.getElementById("new-app-modal");
+  if (modal) modal.style.display = "none";
+}
+
 async function newApp() {
-  const input = document.querySelector("#new-app-name");
-  if (!input) return;
-  const name = input.value.trim();
+  const nameInput = document.getElementById("new-app-name");
+  if (!nameInput) return;
+  const name = nameInput.value.trim();
   if (!name) {
     showToast("Enter an app name first");
     return;
   }
+
+  const options = {
+    ruby_version: document.getElementById("new-app-ruby")?.value || null,
+    api_only: document.getElementById("new-app-api")?.checked || false,
+    database: document.getElementById("new-app-database")?.value || "sqlite3",
+    install_devise: document.getElementById("new-app-devise")?.checked || false,
+    install_rspec: document.getElementById("new-app-rspec")?.checked || false,
+    install_factory_bot: document.getElementById("new-app-factory-bot")?.checked || false,
+    install_sidekiq: document.getElementById("new-app-sidekiq")?.checked || false,
+    install_dotenv: document.getElementById("new-app-dotenv")?.checked || false,
+  };
+
+  closeNewAppModal();
   setStatus("Creating app...");
   if (activityPanel) {
     activityStatus.textContent = "Creating app...";
@@ -352,8 +397,7 @@ async function newApp() {
   appendLog("Initializing create...");
   startAppCreationChecker();
   try {
-    await invoke("create_app", { name });
-    input.value = "";
+    await invoke("create_app", { name, options });
     showToast("App creation started in background");
   } catch (error) {
     stopAppCreationChecker();
@@ -1098,29 +1142,30 @@ function wireEvents() {
   document.querySelector("#add-app")?.addEventListener("click", () => {
     browseFolder();
   });
-  document.querySelector("#new-app")?.addEventListener("click", () => {
-    const input = document.querySelector("#new-app-name");
-    if (input?.value?.trim()) {
+  document.querySelector("#new-app")?.addEventListener("click", openNewAppModal);
+  document.querySelector("#new-app-modal-close")?.addEventListener("click", closeNewAppModal);
+  document.querySelector("#new-app-cancel")?.addEventListener("click", closeNewAppModal);
+  document.querySelector("#new-app-submit")?.addEventListener("click", newApp);
+
+  document.getElementById("new-app-name")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
       newApp();
-    } else {
-      input?.focus();
     }
   });
+
+  // Close modal on overlay click
+  document.getElementById("new-app-modal")?.addEventListener("click", (e) => {
+    if (e.target.id === "new-app-modal") {
+      closeNewAppModal();
+    }
+  });
+
   if (addAppSubmit) {
     addAppSubmit.addEventListener("click", addApp);
   }
   if (addAppBrowse) {
     addAppBrowse.addEventListener("click", browseFolder);
   }
-  if (newAppSubmit) {
-    newAppSubmit.addEventListener("click", newApp);
-  }
-
-  document.querySelector("#new-app-name")?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      newApp();
-    }
-  });
 
   document.querySelector("#open-folder")?.addEventListener("click", async () => {
     try {

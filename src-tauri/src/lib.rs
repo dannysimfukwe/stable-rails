@@ -38,7 +38,7 @@ struct LogEvent {
 }
 
 #[tauri::command]
-fn create_app(window: tauri::Window, name: String) -> Result<(), String> {
+fn create_app(window: tauri::Window, name: String, options: Option<stable::new::RailsAppOptions>) -> Result<(), String> {
     let progress_window = window.clone();
     let log_window = window.clone();
 
@@ -61,7 +61,7 @@ fn create_app(window: tauri::Window, name: String) -> Result<(), String> {
     };
 
     std::thread::spawn(move || {
-        if let Err(err) = stable::new::run_with_progress(&name, progress, log) {
+        if let Err(err) = stable::new::run_with_progress(&name, options, progress, log) {
             let _ = log_window2.emit(
                 "stable:log",
                 LogEvent {

@@ -2,10 +2,24 @@ use crate::stable::config::{AppConfig, next_available_port, save_app_config, upd
 use crate::stable::utils::{
     apps_folder, ensure_hosts_entry, run_shell_output, shell_escape, slugify_name,
 };
+use crate::stable::ruby_manager;
 use anyhow::Result;
 use std::fs;
+use std::path::Path;
 
-pub fn run_with_progress<F, G>(app_name: &str, progress: F, log: G) -> Result<()>
+#[derive(Debug, serde::Deserialize, Clone)]
+pub struct RailsAppOptions {
+    pub ruby_version: Option<String>,
+    pub api_only: bool,
+    pub database: String,
+    pub install_devise: bool,
+    pub install_rspec: bool,
+    pub install_factory_bot: bool,
+    pub install_sidekiq: bool,
+    pub install_dotenv: bool,
+}
+
+pub fn run_with_progress<F, G>(app_name: &str, options: Option<RailsAppOptions>, progress: F, log: G) -> Result<()>
 where
     F: Fn(&str),
     G: Fn(&str),
@@ -27,23 +41,141 @@ where
         anyhow::bail!("App '{}' already exists", slug_name);
     }
 
+    let opts = options.unwrap_or(RailsAppOptions {
+        ruby_version: None,
+        api_only: false,
+        database: "sqlite3".to_string(),
+        install_devise: false,
+        install_rspec: false,
+        install_factory_bot: false,
+        install_sidekiq: false,
+        install_dotenv: false,
+    });
+
     let port = next_available_port();
     log(&format!("Assigning port {} to this app", port));
 
+    // Build rails new command with flags
     let escaped_name = shell_escape(&slug_name);
+    let mut rails_cmd = format!("rails new '{}' --skip-bundle", escaped_name);
+
+    if opts.api_only {
+        rails_cmd.push_str(" --api");
+        log("Creating API-only Rails app");
+    }
+
+    if opts.database != "sqlite3" {
+        rails_cmd.push_str(&format!(" --database={}", opts.database));
+        log(&format!("Using {} database", opts.database));
+    }
+
     progress("Creating Rails app...");
-    let rails_output = run_shell_output(
-        &apps_root,
-        &format!("rails new '{}' --skip-bundle", escaped_name),
-    )?;
+    let rails_output = run_shell_output(&apps_root, &rails_cmd)?;
     log_output(&log, &rails_output);
     if !rails_output.status.success() {
         anyhow::bail!("rails new failed for '{}'", app_name);
     }
 
+    // Set Ruby version if specified
+    if let Some(ref ruby_ver) = opts.ruby_version {
+        let ruby_version_file = app_path.join(".ruby-version");
+        fs::write(&ruby_version_file, ruby_ver)?;
+        log(&format!("Set Ruby version to {}", ruby_ver));
+
+        // Also update Gemfile ruby declaration if present
+        let gemfile = app_path.join("Gemfile");
+        if gemfile.exists() {
+            if let Ok(content) = fs::read_to_string(&gemfile) {
+                let updated = content.replace(
+                    &format!("ruby \"{}\"", ruby_ver),
+                    &format!("ruby \"{}\"", ruby_ver)
+                );
+                // If no ruby line exists, add it after source
+                if !updated.contains("ruby \"") {
+                    let with_ruby = updated.replacen(
+                        "source ",
+                        &format!("ruby \"{}\"\nsource ", ruby_ver),
+                        1
+                    );
+                    let _ = fs::write(&gemfile, with_ruby);
+                }
+            }
+        }
+    }
+
+    // Install additional gems
+    if opts.install_devise || opts.install_rspec || opts.install_factory_bot || opts.install_sidekiq || opts.install_dotenv {
+        progress("Adding gems to Gemfile...");
+        let gemfile = app_path.join("Gemfile");
+        let mut gemfile_content = fs::read_to_string(&gemfile)?;
+
+        if opts.install_devise {
+            gemfile_content.push_str("\ngem 'devise'\n");
+            log("Added devise to Gemfile");
+        }
+        if opts.install_rspec {
+            gemfile_content.push_str("\ngroup :development, :test do\n  gem 'rspec-rails'\nend\n");
+            log("Added rspec-rails to Gemfile");
+        }
+        if opts.install_factory_bot {
+            gemfile_content.push_str("\ngroup :development, :test do\n  gem 'factory_bot_rails'\nend\n");
+            log("Added factory_bot_rails to Gemfile");
+        }
+        if opts.install_sidekiq {
+            gemfile_content.push_str("\ngem 'sidekiq'\n");
+            log("Added sidekiq to Gemfile");
+        }
+        if opts.install_dotenv {
+            gemfile_content.push_str("\ngroup :development, :test do\n  gem 'dotenv-rails'\nend\n");
+            log("Added dotenv-rails to Gemfile");
+        }
+
+        fs::write(&gemfile, gemfile_content)?;
+    }
+
+    // Run bundle install
+    progress("Running bundle install...");
+    let bundle_output = run_shell_output(&app_path, "bundle install")?;
+    log_output(&log, &bundle_output);
+    if !bundle_output.status.success() {
+        log("Warning: bundle install had issues, continuing...");
+    }
+
+    // Run generators for installed gems
+    if opts.install_devise {
+        progress("Installing Devise...");
+        let devise_output = run_shell_output(&app_path, "bundle exec rails generate devise:install")?;
+        log_output(&log, &devise_output);
+        if devise_output.status.success() {
+            log("Devise installed successfully");
+        } else {
+            log("Warning: Devise install had issues");
+        }
+    }
+
+    if opts.install_rspec {
+        progress("Installing RSpec...");
+        let rspec_output = run_shell_output(&app_path, "bundle exec rails generate rspec:install")?;
+        log_output(&log, &rspec_output);
+        if rspec_output.status.success() {
+            log("RSpec installed successfully");
+        } else {
+            log("Warning: RSpec install had issues");
+        }
+    }
+
+    if opts.install_sidekiq {
+        progress("Setting up Sidekiq...");
+        // Create config/initializers/sidekiq.rb
+        let initializer = app_path.join("config/initializers/sidekiq.rb");
+        fs::create_dir_all(app_path.join("config/initializers"))?;
+        fs::write(&initializer, "require 'sidekiq/web'\n")?;
+        log("Sidekiq initializer created");
+    }
+
+    // Generate TLS certificates
     let cert_path = app_path.join("cert.pem");
     let key_path = app_path.join("key.pem");
-
     let domain = format!("{}.test", slug_name);
     let _ = ensure_hosts_entry(&domain)?;
 
@@ -68,6 +200,7 @@ where
         }
     }
 
+    // Save app config
     let mut app_config = AppConfig::default();
     app_config.name = slug_name.clone();
     app_config.path = app_path.clone();
@@ -88,7 +221,7 @@ where
 }
 
 pub fn run(app_name: &str) -> Result<()> {
-    run_with_progress(app_name, |_| {}, |_| {})
+    run_with_progress(app_name, None, |_| {}, |_| {})
 }
 
 fn log_output<F>(log: &F, output: &std::process::Output)

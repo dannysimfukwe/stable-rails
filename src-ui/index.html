@@ -90,11 +90,6 @@
           <div class="apps-grid" id="apps-grid"></div>
           <div class="input-row" id="app-inputs">
             <div class="input-field">
-              <label for="new-app-name">New app name</label>
-              <input id="new-app-name" placeholder="alpha" />
-              <button class="primary" id="new-app-submit">Create</button>
-            </div>
-            <div class="input-field">
               <label for="existing-app-path">Existing app path</label>
               <input id="existing-app-path" placeholder="Select a folder..." readonly />
               <button class="ghost" id="add-app-browse">Browse...</button>
@@ -114,6 +109,70 @@
             <pre id="activity-log">Logs will appear here.</pre>
           </div>
         </section>
+
+        <!-- New Rails App Modal -->
+        <div class="modal-overlay" id="new-app-modal" style="display:none;">
+          <div class="modal new-app-modal">
+            <div class="modal-header">
+              <h3>Create New Rails App</h3>
+              <button class="ghost modal-close" id="new-app-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div class="form-group">
+                <label for="new-app-name">App Name</label>
+                <input type="text" id="new-app-name" placeholder="my-awesome-app" autocomplete="off" />
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="new-app-ruby">Ruby Version</label>
+                  <select id="new-app-ruby">
+                    <option value="">System default</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="new-app-database">Database</label>
+                  <select id="new-app-database">
+                    <option value="sqlite3">SQLite</option>
+                    <option value="postgresql">PostgreSQL</option>
+                    <option value="mysql">MySQL</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-options">
+                <label class="checkbox-option">
+                  <input type="checkbox" id="new-app-api" />
+                  <span>API-only mode (no views, no assets)</span>
+                </label>
+                <label class="checkbox-option">
+                  <input type="checkbox" id="new-app-devise" />
+                  <span>Install Devise (authentication)</span>
+                </label>
+                <label class="checkbox-option">
+                  <input type="checkbox" id="new-app-rspec" />
+                  <span>Install RSpec (testing framework)</span>
+                </label>
+                <label class="checkbox-option">
+                  <input type="checkbox" id="new-app-factory-bot" />
+                  <span>Install Factory Bot (test data)</span>
+                </label>
+                <label class="checkbox-option">
+                  <input type="checkbox" id="new-app-sidekiq" />
+                  <span>Install Sidekiq (background jobs)</span>
+                </label>
+                <label class="checkbox-option">
+                  <input type="checkbox" id="new-app-dotenv" />
+                  <span>Install dotenv-rails (environment variables)</span>
+                </label>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="ghost" id="new-app-cancel">Cancel</button>
+              <button class="primary" id="new-app-submit">Create App</button>
+            </div>
+          </div>
+        </div>
 
         <section class="view is-hidden" id="run-view">
           <div class="app-header">
